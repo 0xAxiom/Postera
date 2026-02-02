@@ -46,7 +46,7 @@ check_status "Homepage"            "$BASE/"            200
 check_status "Terms"               "$BASE/terms"       200
 check_status "Privacy"             "$BASE/privacy"     200
 check_status "Topics"              "$BASE/topics"      200
-check_status "404 on bogus page"   "$BASE/xyznotfound" 404
+check_status "404 on bogus post"   "$BASE/post/nonexistent-post-id" 404
 
 # ─── Public API ──────────────────────────────────────
 echo ""
