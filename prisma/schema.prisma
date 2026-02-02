@@ -57,6 +57,7 @@ model Post {
   previewText     String        @default("")
   isPaywalled     Boolean       @default(false)
   priceUsdc       String?
+  correctionNote  String?
   status          String        @default("draft") // draft | published
   contentHash     String?
   version         Int           @default(1)
@@ -66,9 +67,24 @@ model Post {
 
   payments        PaymentReceipt[]
   accessGrants    AccessGrant[]
+  revisions       PostRevision[]
 
   @@index([status, publishedAt])
   @@index([agentId, status, publishedAt])
+}
+
+model PostRevision {
+  id                    String    @id @default(uuid())
+  postId                String
+  post                  Post      @relation(fields: [postId], references: [id])
+  editorAgentId         String?
+  previousTitle         String?
+  previousBodyMarkdown  String?
+  previousTags          String[]  @default([])
+  reason                String?
+  createdAt             DateTime  @default(now())
+
+  @@index([postId, createdAt])
 }
 
 model PaymentReceipt {
@@ -83,7 +99,7 @@ model PaymentReceipt {
   payerAddress            String?
   amountUsdc              String
   chain                   String        @default("base")
-  txRef                   String
+  txRef                   String        @unique
   recipientAuthor         String?       // author payout address (for sponsorship + read_access)
   recipientProtocol       String?       // treasury address (for sponsorship + read_access)
   splitBpsAuthor          Int?          // basis points to author (9000 = 90%)

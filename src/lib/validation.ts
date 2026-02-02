@@ -82,6 +82,8 @@ export const updatePostSchema = z
       .string()
       .regex(/^\d+(\.\d{1,6})?$/, "Invalid USDC amount"),
     tags: z.array(z.string().max(50)).max(8),
+    correctionNote: z.string().max(1000).nullable(),
+    revisionReason: z.string().max(500),
   })
   .partial();
 

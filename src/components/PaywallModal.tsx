@@ -1,50 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSwitchChain, useChainId } from "wagmi";
-import { base } from "wagmi/chains";
+import { useAccount, useSwitchChain, useChainId } from "wagmi";
 import { useModal } from "connectkit";
+import { useSplitterPayment, type PaymentStep } from "@/hooks/useSplitterPayment";
 
-const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
 const BASE_CHAIN_ID = 8453;
-
-const USDC_ABI = [
-  {
-    name: "transfer",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "to", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
-  },
-] as const;
-
-function usdcToUnits(amount: string): bigint {
-  const parts = amount.split(".");
-  const whole = BigInt(parts[0]) * BigInt(10 ** 6);
-  if (parts[1]) {
-    const decimals = parts[1].padEnd(6, "0").slice(0, 6);
-    return whole + BigInt(decimals);
-  }
-  return whole;
-}
 
 type PaywallStep =
   | "initial"
   | "not_connected"
   | "wrong_chain"
-  | "sending"
-  | "confirming"
-  | "verifying"
+  | "fetching"
+  | PaymentStep
   | "unlocked"
   | "error";
-
-interface PaymentInfo {
-  amount: string;
-  recipient: string;
-}
 
 interface PaywallModalProps {
   postId: string;
@@ -57,167 +27,109 @@ export default function PaywallModal({
   priceUsdc,
   onUnlocked,
 }: PaywallModalProps) {
-  const [step, setStep] = useState<PaywallStep>("initial");
-  const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [fetchLoading, setFetchLoading] = useState(false);
+  const [outerStep, setOuterStep] = useState<"initial" | "not_connected" | "wrong_chain" | "fetching" | "hook" | "unlocked" | "error">("initial");
+  const [outerError, setOuterError] = useState("");
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const { setOpen } = useModal();
 
-  const {
-    data: txHash,
-    writeContract,
-    isPending: isSending,
-    error: writeError,
-    reset: resetWrite,
-  } = useWriteContract();
+  const payment = useSplitterPayment({
+    onConfirmed: async (txHash, { markSuccess, markError }) => {
+      // Submit proof to backend and unlock content
+      try {
+        const res = await fetch(`/api/posts/${postId}?view=full`, {
+          headers: {
+            "X-Payment-Response": txHash,
+            "X-Payer-Address": address || "",
+          },
+        });
 
-  const {
-    isLoading: isConfirming,
-    isSuccess: isConfirmed,
-    error: confirmError,
-  } = useWaitForTransactionReceipt({
-    hash: txHash,
+        if (res.ok) {
+          const data = await res.json();
+          onUnlocked(data.bodyHtml || data.body || "");
+          markSuccess();
+          setOuterStep("unlocked");
+        } else {
+          const data = await res.json().catch(() => ({}));
+          markError(data.error || "Payment verification failed.");
+        }
+      } catch {
+        markError("Network error during verification.");
+      }
+    },
   });
 
-  // When tx confirms, submit proof to backend
-  useEffect(() => {
-    if (isConfirmed && txHash && address && step === "confirming") {
-      submitProof(txHash, address);
-    }
-  }, [isConfirmed, txHash, address, step]);
+  // Derive display step from outer state + hook state
+  const displayStep: PaywallStep = outerStep === "hook" ? payment.step : outerStep;
 
-  // Track write errors
-  useEffect(() => {
-    if (writeError) {
-      const msg = writeError.message.includes("User rejected")
-        ? "Transaction rejected. Try again when ready."
-        : writeError.message.length > 100
-        ? writeError.message.slice(0, 100) + "..."
-        : writeError.message;
-      setErrorMessage(msg);
-      setStep("error");
-    }
-  }, [writeError]);
-
-  // Track confirmation errors
-  useEffect(() => {
-    if (confirmError) {
-      setErrorMessage("Transaction failed on-chain. Please try again.");
-      setStep("error");
-    }
-  }, [confirmError]);
-
-  // Move to confirming state when tx is sent
-  useEffect(() => {
-    if (txHash && step === "sending") {
-      setStep("confirming");
-    }
-  }, [txHash, step]);
+  // Pick error message
+  const errorMsg = outerStep === "hook" ? payment.errorMessage : outerError;
 
   async function handleUnlockClick() {
-    setErrorMessage("");
+    setOuterError("");
 
-    // Step 1: Check wallet connected
     if (!isConnected) {
-      setStep("not_connected");
+      setOuterStep("not_connected");
       return;
     }
 
-    // Step 2: Check chain
     if (chainId !== BASE_CHAIN_ID) {
-      setStep("wrong_chain");
+      setOuterStep("wrong_chain");
       return;
     }
 
-    // Step 3: Fetch payment details
-    setFetchLoading(true);
+    // Fetch payment details
+    setOuterStep("fetching");
     try {
       const res = await fetch(`/api/posts/${postId}?view=full`);
 
       if (res.status === 402) {
         const data = await res.json();
-        if (data.payment) {
-          setPaymentInfo({
-            amount: data.payment.amount,
-            recipient: data.payment.recipient,
-          });
-          // Step 4: Send transaction
-          sendPayment(data.payment.amount, data.payment.recipient);
+        // The API returns paymentRequirements as an array
+        const reqs = data.paymentRequirements;
+        const recipient = reqs?.[0]?.recipient || reqs?.authorRecipient;
+        const amount = reqs?.[0]?.amount || reqs?.totalAmount || priceUsdc;
+        if (recipient) {
+          // Hand off to splitter hook
+          setOuterStep("hook");
+          payment.execute(
+            recipient as `0x${string}`,
+            amount
+          );
         } else {
-          setErrorMessage("Unexpected payment response.");
-          setStep("error");
+          setOuterError("Unexpected payment response.");
+          setOuterStep("error");
         }
       } else if (res.ok) {
-        // Already unlocked (existing AccessGrant)
+        // Already unlocked
         const data = await res.json();
         onUnlocked(data.bodyHtml || data.body || "");
-        setStep("unlocked");
+        setOuterStep("unlocked");
       } else {
         const data = await res.json().catch(() => ({}));
-        setErrorMessage(data.error || "Failed to fetch post.");
-        setStep("error");
+        setOuterError(data.error || "Failed to fetch post.");
+        setOuterStep("error");
       }
     } catch {
-      setErrorMessage("Network error. Please try again.");
-      setStep("error");
-    } finally {
-      setFetchLoading(false);
-    }
-  }
-
-  function sendPayment(amount: string, recipient: string) {
-    setStep("sending");
-    resetWrite();
-    writeContract({
-      address: USDC_ADDRESS,
-      abi: USDC_ABI,
-      functionName: "transfer",
-      args: [recipient as `0x${string}`, usdcToUnits(amount)],
-      chain: base,
-    });
-  }
-
-  async function submitProof(hash: string, payer: string) {
-    setStep("verifying");
-    try {
-      const res = await fetch(`/api/posts/${postId}?view=full`, {
-        headers: {
-          "X-Payment-Response": hash,
-          "X-Payer-Address": payer,
-        },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        onUnlocked(data.bodyHtml || data.body || "");
-        setStep("unlocked");
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setErrorMessage(data.error || "Payment verification failed.");
-        setStep("error");
-      }
-    } catch {
-      setErrorMessage("Network error during verification.");
-      setStep("error");
+      setOuterError("Network error. Please try again.");
+      setOuterStep("error");
     }
   }
 
   function handleRetry() {
-    setStep("initial");
-    setErrorMessage("");
-    resetWrite();
+    setOuterStep("initial");
+    setOuterError("");
+    payment.reset();
   }
 
-  if (step === "unlocked") return null;
+  if (displayStep === "unlocked" || displayStep === "success") return null;
 
   return (
     <div className="relative mt-8">
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center max-w-lg mx-auto">
-        {step === "initial" && (
+        {displayStep === "initial" && (
           <>
             <h3 className="text-2xl font-bold text-gray-900 mb-2">
               Continue reading
@@ -229,10 +141,9 @@ export default function PaywallModal({
             </div>
             <button
               onClick={handleUnlockClick}
-              disabled={fetchLoading}
               className="btn-unlock w-full mb-3"
             >
-              {fetchLoading ? "Loading..." : "Unlock this post"}
+              Unlock this post
             </button>
             <p className="text-xs text-gray-400">Pay with USDC on Base</p>
             <div className="mt-3 inline-flex items-center gap-1.5 badge bg-blue-50 text-blue-700 border border-blue-200">
@@ -242,7 +153,7 @@ export default function PaywallModal({
           </>
         )}
 
-        {step === "not_connected" && (
+        {displayStep === "not_connected" && (
           <>
             <h3 className="text-2xl font-bold text-gray-900 mb-2">
               Connect your wallet
@@ -257,7 +168,7 @@ export default function PaywallModal({
               Connect Wallet
             </button>
             <button
-              onClick={() => setStep("initial")}
+              onClick={() => setOuterStep("initial")}
               className="text-sm text-gray-500 hover:text-gray-700"
             >
               Back
@@ -265,7 +176,7 @@ export default function PaywallModal({
           </>
         )}
 
-        {step === "wrong_chain" && (
+        {displayStep === "wrong_chain" && (
           <>
             <h3 className="text-2xl font-bold text-gray-900 mb-2">
               Switch to Base
@@ -280,7 +191,7 @@ export default function PaywallModal({
               Switch to Base
             </button>
             <button
-              onClick={() => setStep("initial")}
+              onClick={() => setOuterStep("initial")}
               className="text-sm text-gray-500 hover:text-gray-700"
             >
               Back
@@ -288,20 +199,57 @@ export default function PaywallModal({
           </>
         )}
 
-        {step === "sending" && (
+        {(displayStep === "fetching" || displayStep === "checking_allowance") && (
           <>
             <Spinner />
             <h3 className="text-xl font-bold text-gray-900 mb-2">
-              Confirm in your wallet
+              Preparing payment...
             </h3>
             <p className="text-sm text-gray-500">
-              Approve the transfer of{" "}
-              <strong>${paymentInfo?.amount} USDC</strong> in your wallet.
+              Checking your USDC allowance.
             </p>
           </>
         )}
 
-        {step === "confirming" && (
+        {displayStep === "approving" && (
+          <>
+            <Spinner />
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              Step 1/2: Approve USDC
+            </h3>
+            <p className="text-sm text-gray-500">
+              Approve the splitter contract to spend{" "}
+              <strong>${priceUsdc} USDC</strong> in your wallet.
+            </p>
+          </>
+        )}
+
+        {displayStep === "approve_confirming" && (
+          <>
+            <Spinner />
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              Step 1/2: Confirming approval...
+            </h3>
+            <p className="text-sm text-gray-500">
+              Waiting for approval transaction to confirm on Base.
+            </p>
+          </>
+        )}
+
+        {displayStep === "sending" && (
+          <>
+            <Spinner />
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              {payment.approveSkipped ? "Confirm purchase" : "Step 2/2: Confirm purchase"}
+            </h3>
+            <p className="text-sm text-gray-500">
+              Confirm the payment of{" "}
+              <strong>${priceUsdc} USDC</strong> in your wallet.
+            </p>
+          </>
+        )}
+
+        {displayStep === "confirming" && (
           <>
             <Spinner />
             <h3 className="text-xl font-bold text-gray-900 mb-2">
@@ -310,20 +258,20 @@ export default function PaywallModal({
             <p className="text-sm text-gray-500 mb-2">
               Waiting for your transaction to be confirmed.
             </p>
-            {txHash && (
+            {payment.txHash && (
               <a
-                href={`https://basescan.org/tx/${txHash}`}
+                href={`https://basescan.org/tx/${payment.txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-indigo-600 hover:underline font-mono"
               >
-                {txHash.slice(0, 10)}...{txHash.slice(-8)}
+                {payment.txHash.slice(0, 10)}...{payment.txHash.slice(-8)}
               </a>
             )}
           </>
         )}
 
-        {step === "verifying" && (
+        {displayStep === "verifying" && (
           <>
             <Spinner />
             <h3 className="text-xl font-bold text-gray-900 mb-2">
@@ -335,7 +283,7 @@ export default function PaywallModal({
           </>
         )}
 
-        {step === "error" && (
+        {displayStep === "error" && (
           <>
             <div className="w-12 h-12 rounded-full bg-red-100 mx-auto flex items-center justify-center mb-4">
               <svg
@@ -355,7 +303,7 @@ export default function PaywallModal({
             <h3 className="text-xl font-bold text-gray-900 mb-2">
               Something went wrong
             </h3>
-            <p className="text-sm text-red-600 mb-4">{errorMessage}</p>
+            <p className="text-sm text-red-600 mb-4">{errorMsg}</p>
             <button onClick={handleRetry} className="btn-secondary w-full">
               Try Again
             </button>

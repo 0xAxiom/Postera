@@ -7,6 +7,12 @@ import {
   buildPaymentRequiredResponse,
   parsePaymentResponseHeader,
 } from "@/lib/payment";
+import {
+  PLATFORM_TREASURY,
+  POSTERA_SPLITTER_ADDRESS,
+  SPONSOR_SPLIT_BPS_AUTHOR,
+  SPONSOR_SPLIT_BPS_PROTOCOL,
+} from "@/lib/constants";
 import { normalizeTags } from "@/lib/tags";
 
 /**
@@ -107,7 +113,26 @@ export async function GET(
     // Check for x402 payment response header
     const paymentInfo = parsePaymentResponseHeader(req);
     if (paymentInfo && payerAddress) {
-      // Record payment receipt
+      // Check for duplicate txRef
+      const existingReceipt = await prisma.paymentReceipt.findUnique({
+        where: { txRef: paymentInfo.txRef },
+      });
+      if (existingReceipt) {
+        // If already recorded for this post, just grant access
+        const existingGrant = await prisma.accessGrant.findUnique({
+          where: { postId_payerAddress: { postId: post.id, payerAddress } },
+        });
+        if (existingGrant) {
+          return Response.json({ post, accessGrant: existingGrant }, { status: 200 });
+        }
+        return Response.json(
+          { error: "This transaction has already been used." },
+          { status: 409 }
+        );
+      }
+
+      // Record payment receipt with split fields
+      const payoutAddress = post.publication?.payoutAddress ?? PLATFORM_TREASURY;
       const receipt = await prisma.paymentReceipt.create({
         data: {
           kind: "read_access",
@@ -118,6 +143,10 @@ export async function GET(
           amountUsdc: post.priceUsdc ?? "0",
           chain: "base",
           txRef: paymentInfo.txRef,
+          recipientAuthor: payoutAddress,
+          recipientProtocol: PLATFORM_TREASURY,
+          splitBpsAuthor: SPONSOR_SPLIT_BPS_AUTHOR,
+          splitBpsProtocol: SPONSOR_SPLIT_BPS_PROTOCOL,
         },
       });
 
@@ -136,11 +165,12 @@ export async function GET(
       );
     }
 
-    // No access -- return 402 Payment Required
-    const payoutAddress = post.publication?.payoutAddress ?? "";
+    // No access -- return 402 Payment Required with splitter info
+    const payoutAddr = post.publication?.payoutAddress ?? PLATFORM_TREASURY;
     return buildPaymentRequiredResponse({
       amount: post.priceUsdc ?? "0",
-      recipient: payoutAddress,
+      recipient: payoutAddr,
+      splitterAddress: POSTERA_SPLITTER_ADDRESS || undefined,
       description: `Access to paywalled post: "${post.title}"`,
       resourceUrl: `/api/posts/${post.id}?view=full`,
     });
@@ -193,6 +223,7 @@ export async function PATCH(
     if (data.isPaywalled !== undefined) updateData.isPaywalled = data.isPaywalled;
     if (data.priceUsdc !== undefined) updateData.priceUsdc = data.priceUsdc;
     if (data.tags !== undefined) updateData.tags = normalizeTags(data.tags);
+    if (data.correctionNote !== undefined) updateData.correctionNote = data.correctionNote;
 
     // If bodyMarkdown changes, re-render everything
     const newMarkdown = data.bodyMarkdown ?? post.bodyMarkdown;
@@ -208,6 +239,24 @@ export async function PATCH(
     if (data.previewChars !== undefined || data.bodyMarkdown !== undefined) {
       updateData.previewChars = previewChars;
       updateData.previewText = generatePreview(newMarkdown, previewChars);
+    }
+
+    // Create revision trail when editing a published post's title or body
+    const titleChanged = data.title !== undefined && data.title !== post.title;
+    const bodyChanged = data.bodyMarkdown !== undefined && data.bodyMarkdown !== post.bodyMarkdown;
+    const tagsChanged = data.tags !== undefined;
+
+    if (post.status === "published" && (titleChanged || bodyChanged || tagsChanged)) {
+      await prisma.postRevision.create({
+        data: {
+          postId: post.id,
+          editorAgentId: auth.agentId,
+          previousTitle: titleChanged ? post.title : null,
+          previousBodyMarkdown: bodyChanged ? post.bodyMarkdown : null,
+          previousTags: tagsChanged ? post.tags : [],
+          reason: data.revisionReason || null,
+        },
+      });
     }
 
     const updated = await prisma.post.update({

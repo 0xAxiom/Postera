@@ -10,6 +10,7 @@ import {
 export function buildPaymentRequiredResponse(opts: {
   amount: string;
   recipient: string;
+  splitterAddress?: string;
   description: string;
   resourceUrl: string;
 }): Response {
@@ -21,6 +22,7 @@ export function buildPaymentRequiredResponse(opts: {
       asset: USDC_CONTRACT_BASE,
       amount: opts.amount,
       recipient: opts.recipient,
+      ...(opts.splitterAddress ? { splitterAddress: opts.splitterAddress } : {}),
       description: opts.description,
       mimeType: "application/json",
       resourceUrl: opts.resourceUrl,

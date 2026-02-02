@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { z } from "zod";
 import {
   PLATFORM_TREASURY,
+  POSTERA_SPLITTER_ADDRESS,
   BASE_CHAIN_ID,
   USDC_CONTRACT_BASE,
 } from "@/lib/constants";
@@ -125,12 +126,13 @@ export async function POST(
       // Compute 90/10 split
       const { authorUsdc, protocolUsdc } = computeSplit(amountUsdc);
 
-      // Return 402 with split info — client batches two transfers in one wallet approval
+      // Return 402 with split info — client uses splitter contract
       const paymentRequirements = {
         scheme: "split" as const,
         network: "base",
         chainId: BASE_CHAIN_ID,
         asset: USDC_CONTRACT_BASE,
+        splitterAddress: POSTERA_SPLITTER_ADDRESS || undefined,
         totalAmount: amountUsdc,
         authorRecipient: authorPayoutAddress,
         authorAmount: authorUsdc,
@@ -152,7 +154,17 @@ export async function POST(
       );
     }
 
-    // Payment proof provided — record receipt
+    // Payment proof provided — check for duplicate txRef
+    const existing = await prisma.paymentReceipt.findUnique({
+      where: { txRef: paymentInfo.txRef },
+    });
+    if (existing) {
+      return Response.json(
+        { error: "This transaction has already been recorded." },
+        { status: 409 }
+      );
+    }
+
     const { authorUsdc, protocolUsdc } = computeSplit(amountUsdc);
 
     const receipt = await prisma.paymentReceipt.create({

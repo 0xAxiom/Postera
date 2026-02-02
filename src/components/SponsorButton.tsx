@@ -1,42 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  useAccount,
-  useWriteContract,
-  useWaitForTransactionReceipt,
-  useSwitchChain,
-  useChainId,
-} from "wagmi";
-import { useWriteContracts, useCallsStatus } from "wagmi/experimental";
-import { base } from "wagmi/chains";
+import { useState, useCallback } from "react";
+import { useAccount, useSwitchChain, useChainId } from "wagmi";
 import { useModal } from "connectkit";
+import { useSplitterPayment, type PaymentStep } from "@/hooks/useSplitterPayment";
 
-const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
 const BASE_CHAIN_ID = 8453;
+const PRESET_AMOUNTS = ["0.25", "0.50", "1.00"];
 
-const USDC_ABI = [
-  {
-    name: "transfer",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "to", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
-  },
-] as const;
-
-function usdcToUnits(amount: string): bigint {
-  const parts = amount.split(".");
-  const whole = BigInt(parts[0]) * BigInt(10 ** 6);
-  if (parts[1]) {
-    const decimals = parts[1].padEnd(6, "0").slice(0, 6);
-    return whole + BigInt(decimals);
-  }
-  return whole;
-}
+type SponsorStep =
+  | "select"
+  | "not_connected"
+  | "wrong_chain"
+  | "fetching"
+  | PaymentStep
+  | "success"
+  | "error";
 
 interface SponsorButtonProps {
   postId: string;
@@ -45,19 +24,6 @@ interface SponsorButtonProps {
   sponsorEarned: number;
   uniqueSponsors: number;
 }
-
-const PRESET_AMOUNTS = ["0.25", "0.50", "1.00"];
-
-type SponsorStep =
-  | "select"
-  | "not_connected"
-  | "wrong_chain"
-  | "fetching"
-  | "sending"
-  | "confirming"
-  | "verifying"
-  | "success"
-  | "error";
 
 export default function SponsorButton({
   postId,
@@ -68,11 +34,8 @@ export default function SponsorButton({
 }: SponsorButtonProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [custom, setCustom] = useState("");
-  const [step, setStep] = useState<SponsorStep>("select");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [txHash, setTxHash] = useState<string | undefined>();
-
-  // Track whether proof has been submitted (for tally display)
+  const [outerStep, setOuterStep] = useState<"select" | "not_connected" | "wrong_chain" | "fetching" | "hook" | "success" | "error">("select");
+  const [outerError, setOuterError] = useState("");
   const [proofSubmitted, setProofSubmitted] = useState(false);
 
   const { address, isConnected } = useAccount();
@@ -80,132 +43,55 @@ export default function SponsorButton({
   const { switchChain } = useSwitchChain();
   const { setOpen } = useModal();
 
-  // ─── Batch (EIP-5792) path ────────────────────────────────────────────────
-  const {
-    data: batchId,
-    writeContracts,
-    error: batchError,
-    reset: resetBatch,
-  } = useWriteContracts();
-
-  const {
-    data: callsStatus,
-  } = useCallsStatus({
-    id: batchId as string,
-    query: { enabled: !!batchId, refetchInterval: 2000 },
-  });
-
-  // ─── Fallback single-transfer path ────────────────────────────────────────
-  const {
-    data: singleTxHash,
-    writeContract,
-    error: singleError,
-    reset: resetSingle,
-  } = useWriteContract();
-
-  const {
-    isSuccess: singleConfirmed,
-    error: singleConfirmError,
-  } = useWaitForTransactionReceipt({ hash: singleTxHash });
-
   const amount = selected === "custom" ? custom : selected;
 
-  // Track whether we're using batch or fallback
-  const [useBatch, setUseBatch] = useState(true);
+  const payment = useSplitterPayment({
+    onConfirmed: async (txHash, { markSuccess, markError }) => {
+      // Submit proof to backend
+      try {
+        const res = await fetch(`/api/posts/${postId}/sponsor`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Payment-Response": txHash,
+            "X-Payer-Address": address || "",
+          },
+          body: JSON.stringify({ amountUsdc: amount }),
+        });
 
-  // ─── Batch confirmation ───────────────────────────────────────────────────
-  useEffect(() => {
-    if (!callsStatus || step !== "confirming") return;
-    if (callsStatus.status === "CONFIRMED") {
-      // Extract tx hash from receipts
-      const receipts = callsStatus.receipts;
-      const hash = receipts?.[0]?.transactionHash;
-      if (hash) setTxHash(hash);
-      submitProof(hash || batchId || "batch");
-    }
-  }, [callsStatus, step]);
-
-  // ─── Batch errors → fall back to single transfer ─────────────────────────
-  useEffect(() => {
-    if (!batchError) return;
-    const msg = batchError.message || "";
-    // If wallet doesn't support EIP-5792, fall back to single transfer
-    if (
-      msg.includes("not supported") ||
-      msg.includes("Method not found") ||
-      msg.includes("wallet_sendCalls") ||
-      msg.includes("does not support")
-    ) {
-      setUseBatch(false);
-      // Retry with single transfer using the stored payment info
-      if (storedAuthorRecipient && amount) {
-        sendSinglePayment(amount, storedAuthorRecipient);
+        if (res.ok || res.status === 201) {
+          setProofSubmitted(true);
+          markSuccess();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          markError(data.error || "Payment verification failed.");
+        }
+      } catch {
+        markError("Network error during verification.");
       }
-      return;
-    }
-    // User rejection or other error
-    const display = msg.includes("User rejected")
-      ? "Transaction rejected. Try again when ready."
-      : msg.length > 100
-      ? msg.slice(0, 100) + "..."
-      : msg;
-    setErrorMsg(display);
-    setStep("error");
-  }, [batchError]);
+    },
+  });
 
-  // ─── Single-transfer confirmation ─────────────────────────────────────────
-  useEffect(() => {
-    if (singleConfirmed && singleTxHash && address && step === "confirming") {
-      setTxHash(singleTxHash);
-      submitProof(singleTxHash);
-    }
-  }, [singleConfirmed, singleTxHash, address, step]);
-
-  useEffect(() => {
-    if (singleError) {
-      const msg = singleError.message.includes("User rejected")
-        ? "Transaction rejected. Try again when ready."
-        : singleError.message.length > 100
-        ? singleError.message.slice(0, 100) + "..."
-        : singleError.message;
-      setErrorMsg(msg);
-      setStep("error");
-    }
-  }, [singleError]);
-
-  useEffect(() => {
-    if (singleConfirmError) {
-      setErrorMsg("Transaction failed on-chain. Please try again.");
-      setStep("error");
-    }
-  }, [singleConfirmError]);
-
-  useEffect(() => {
-    if (singleTxHash && step === "sending") {
-      setStep("confirming");
-    }
-  }, [singleTxHash, step]);
-
-  // Store payment info for potential fallback
-  const [storedAuthorRecipient, setStoredAuthorRecipient] = useState<string | null>(null);
+  // Derive the display step from outer state + hook state
+  const displayStep: SponsorStep = outerStep === "hook" ? payment.step : outerStep;
 
   async function handleSponsorClick() {
     if (!amount || parseFloat(amount) <= 0) return;
-    setErrorMsg("");
-    setTxHash(undefined);
+    setOuterError("");
     setProofSubmitted(false);
 
     if (!isConnected) {
-      setStep("not_connected");
+      setOuterStep("not_connected");
       return;
     }
 
     if (chainId !== BASE_CHAIN_ID) {
-      setStep("wrong_chain");
+      setOuterStep("wrong_chain");
       return;
     }
 
-    setStep("fetching");
+    // Fetch payment details from backend
+    setOuterStep("fetching");
     try {
       const res = await fetch(`/api/posts/${postId}/sponsor`, {
         method: "POST",
@@ -217,125 +103,44 @@ export default function SponsorButton({
         const data = await res.json();
         const reqs = data.paymentRequirements;
         if (!reqs?.authorRecipient) {
-          setErrorMsg("Could not determine payment recipient.");
-          setStep("error");
+          setOuterError("Could not determine payment recipient.");
+          setOuterStep("error");
           return;
         }
 
-        setStoredAuthorRecipient(reqs.authorRecipient);
-
-        if (useBatch && reqs.protocolRecipient) {
-          // Try batch: two transfers in one wallet approval
-          sendBatchPayment(
-            reqs.authorRecipient,
-            reqs.authorAmount,
-            reqs.protocolRecipient,
-            reqs.protocolAmount
-          );
-        } else {
-          // Fallback: single transfer to author
-          sendSinglePayment(amount, reqs.authorRecipient);
-        }
+        // Hand off to the splitter hook
+        setOuterStep("hook");
+        payment.execute(
+          reqs.authorRecipient as `0x${string}`,
+          amount
+        );
       } else if (res.ok) {
-        setStep("success");
+        setOuterStep("success");
       } else {
         const data = await res.json().catch(() => ({ error: "Unknown error" }));
-        setErrorMsg(data.error || "Sponsorship failed");
-        setStep("error");
+        setOuterError(data.error || "Sponsorship failed");
+        setOuterStep("error");
       }
     } catch {
-      setErrorMsg("Network error. Please try again.");
-      setStep("error");
-    }
-  }
-
-  function sendBatchPayment(
-    authorAddr: string,
-    authorAmt: string,
-    protocolAddr: string,
-    protocolAmt: string
-  ) {
-    setStep("sending");
-    resetBatch();
-    writeContracts({
-      contracts: [
-        {
-          address: USDC_ADDRESS,
-          abi: USDC_ABI,
-          functionName: "transfer",
-          args: [authorAddr as `0x${string}`, usdcToUnits(authorAmt)],
-        },
-        {
-          address: USDC_ADDRESS,
-          abi: USDC_ABI,
-          functionName: "transfer",
-          args: [protocolAddr as `0x${string}`, usdcToUnits(protocolAmt)],
-        },
-      ],
-    });
-    // Move to confirming once we have batchId (handled in effect)
-    // But we need to watch for the batchId to appear
-  }
-
-  // When batchId appears, move to confirming
-  useEffect(() => {
-    if (batchId && step === "sending") {
-      setStep("confirming");
-    }
-  }, [batchId, step]);
-
-  function sendSinglePayment(amt: string, to: string) {
-    setStep("sending");
-    resetSingle();
-    writeContract({
-      address: USDC_ADDRESS,
-      abi: USDC_ABI,
-      functionName: "transfer",
-      args: [to as `0x${string}`, usdcToUnits(amt)],
-      chain: base,
-    });
-  }
-
-  async function submitProof(hash: string) {
-    setStep("verifying");
-    try {
-      const res = await fetch(`/api/posts/${postId}/sponsor`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Payment-Response": hash,
-          "X-Payer-Address": address || "",
-        },
-        body: JSON.stringify({ amountUsdc: amount }),
-      });
-
-      if (res.ok || res.status === 201) {
-        setProofSubmitted(true);
-        setStep("success");
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setErrorMsg(data.error || "Payment verification failed.");
-        setStep("error");
-      }
-    } catch {
-      setErrorMsg("Network error during verification.");
-      setStep("error");
+      setOuterError("Network error. Please try again.");
+      setOuterStep("error");
     }
   }
 
   function handleRetry() {
-    setStep("select");
-    setErrorMsg("");
-    setTxHash(undefined);
-    resetBatch();
-    resetSingle();
+    setOuterStep("select");
+    setOuterError("");
+    payment.reset();
   }
 
   const fmtUsdc = (n: number) => (n > 0 ? `$${n.toFixed(2)}` : "$0.00");
 
-  // ─── Render ─────────────────────────────────────────────────────────────────
+  // Pick error message from either outer or hook
+  const errorMsg = outerStep === "hook" ? payment.errorMessage : outerError;
 
-  if (step === "success") {
+  // ─── Render ─────────────────────────────────────────────────────────────
+
+  if (displayStep === "success") {
     return (
       <div className="mt-8 p-6 border border-emerald-200 bg-emerald-50 rounded-lg text-center">
         <p className="text-emerald-700 font-medium">
@@ -344,14 +149,14 @@ export default function SponsorButton({
         <p className="text-xs text-emerald-600 mt-1">
           Refresh the page to see updated earnings.
         </p>
-        {txHash && (
+        {payment.txHash && (
           <a
-            href={`https://basescan.org/tx/${txHash}`}
+            href={`https://basescan.org/tx/${payment.txHash}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-emerald-600 hover:underline font-mono mt-2 inline-block"
           >
-            {txHash.slice(0, 10)}...{txHash.slice(-8)}
+            {payment.txHash.slice(0, 10)}...{payment.txHash.slice(-8)}
           </a>
         )}
       </div>
@@ -359,7 +164,11 @@ export default function SponsorButton({
   }
 
   const isSelectState =
-    step === "select" || step === "not_connected" || step === "wrong_chain" || step === "error";
+    displayStep === "select" ||
+    displayStep === "not_connected" ||
+    displayStep === "wrong_chain" ||
+    displayStep === "error" ||
+    displayStep === "idle";
 
   return (
     <div className="mt-8 p-6 border border-gray-200 rounded-lg">
@@ -389,7 +198,7 @@ export default function SponsorButton({
                 onClick={() => {
                   setSelected(amt);
                   setCustom("");
-                  if (step !== "select") setStep("select");
+                  if (outerStep !== "select") { setOuterStep("select"); payment.reset(); }
                 }}
                 className={`px-4 py-2 rounded text-sm font-medium border transition-colors ${
                   selected === amt
@@ -403,7 +212,7 @@ export default function SponsorButton({
             <button
               onClick={() => {
                 setSelected("custom");
-                if (step !== "select") setStep("select");
+                if (outerStep !== "select") { setOuterStep("select"); payment.reset(); }
               }}
               className={`px-4 py-2 rounded text-sm font-medium border transition-colors ${
                 selected === "custom"
@@ -428,7 +237,7 @@ export default function SponsorButton({
         </>
       )}
 
-      {step === "not_connected" && (
+      {displayStep === "not_connected" && (
         <div className="mb-4">
           <button
             onClick={() => setOpen(true)}
@@ -442,7 +251,7 @@ export default function SponsorButton({
         </div>
       )}
 
-      {step === "wrong_chain" && (
+      {displayStep === "wrong_chain" && (
         <div className="mb-4">
           <button
             onClick={() => switchChain({ chainId: BASE_CHAIN_ID })}
@@ -456,7 +265,7 @@ export default function SponsorButton({
         </div>
       )}
 
-      {step === "select" && amount && parseFloat(amount) > 0 && (
+      {(displayStep === "select" || displayStep === "idle") && amount && parseFloat(amount) > 0 && (
         <button
           onClick={handleSponsorClick}
           className="w-full py-2 rounded bg-indigo-600 text-white font-medium text-sm hover:bg-indigo-700 transition-colors"
@@ -465,47 +274,69 @@ export default function SponsorButton({
         </button>
       )}
 
-      {step === "fetching" && (
+      {displayStep === "fetching" || displayStep === "checking_allowance" ? (
         <div className="text-center py-3">
           <Spinner />
           <p className="text-sm text-gray-500 mt-2">Preparing payment...</p>
         </div>
-      )}
+      ) : null}
 
-      {step === "sending" && (
+      {displayStep === "approving" && (
         <div className="text-center py-3">
           <Spinner />
           <p className="text-sm text-gray-500 mt-2">
-            Confirm the transfer of <strong>${amount} USDC</strong> in your wallet.
+            Step 1/2: Approve USDC spending in your wallet.
           </p>
         </div>
       )}
 
-      {step === "confirming" && (
+      {displayStep === "approve_confirming" && (
+        <div className="text-center py-3">
+          <Spinner />
+          <p className="text-sm text-gray-500 mt-2">
+            Step 1/2: Confirming approval on Base...
+          </p>
+        </div>
+      )}
+
+      {displayStep === "sending" && (
+        <div className="text-center py-3">
+          <Spinner />
+          <p className="text-sm text-gray-500 mt-2">
+            {payment.approveSkipped ? (
+              <>Confirm the sponsorship of <strong>${amount} USDC</strong> in your wallet.</>
+            ) : (
+              <>Step 2/2: Confirm the sponsorship of <strong>${amount} USDC</strong> in your wallet.</>
+            )}
+          </p>
+        </div>
+      )}
+
+      {displayStep === "confirming" && (
         <div className="text-center py-3">
           <Spinner />
           <p className="text-sm text-gray-500 mt-2">Confirming on Base...</p>
-          {txHash && (
+          {payment.txHash && (
             <a
-              href={`https://basescan.org/tx/${txHash}`}
+              href={`https://basescan.org/tx/${payment.txHash}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-indigo-600 hover:underline font-mono"
             >
-              {txHash.slice(0, 10)}...{txHash.slice(-8)}
+              {payment.txHash.slice(0, 10)}...{payment.txHash.slice(-8)}
             </a>
           )}
         </div>
       )}
 
-      {step === "verifying" && (
+      {displayStep === "verifying" && (
         <div className="text-center py-3">
           <Spinner />
           <p className="text-sm text-gray-500 mt-2">Recording sponsorship...</p>
         </div>
       )}
 
-      {step === "error" && (
+      {displayStep === "error" && (
         <div className="mt-3">
           <p className="text-xs text-red-600 mb-2">{errorMsg}</p>
           <button onClick={handleRetry} className="text-xs text-indigo-600 hover:underline">
