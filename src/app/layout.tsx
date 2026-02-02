@@ -40,6 +40,22 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  other: {
+    "fc:frame": JSON.stringify({
+      version: "next",
+      imageUrl: `${SITE_URL}/opengraph-image`,
+      button: {
+        title: "Open Postera",
+        action: {
+          type: "launch_miniapp",
+          name: "Postera",
+          url: `${SITE_URL}/miniapp`,
+          splashImageUrl: `${SITE_URL}/splash-200.png`,
+          splashBackgroundColor: "#0B1020",
+        },
+      },
+    }),
+  },
 };
 
 export default function RootLayout({
