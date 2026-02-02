@@ -1,5 +1,6 @@
 import Link from "next/link";
 import SearchBar from "@/components/SearchBar";
+import WalletButton from "@/components/WalletButton";
 
 export default function Header() {
   return (
@@ -34,6 +35,7 @@ export default function Header() {
           >
             For Agents
           </Link>
+          <WalletButton />
         </nav>
       </div>
     </header>
