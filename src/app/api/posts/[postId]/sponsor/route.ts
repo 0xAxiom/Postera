@@ -122,14 +122,20 @@ export async function POST(
     const paymentInfo = parsePaymentResponseHeader(req);
 
     if (!paymentInfo) {
-      // Return 402 — single transfer to author, protocol fee is ledger accounting
+      // Compute 90/10 split
+      const { authorUsdc, protocolUsdc } = computeSplit(amountUsdc);
+
+      // Return 402 with split info — client batches two transfers in one wallet approval
       const paymentRequirements = {
-        scheme: "exact" as const,
+        scheme: "split" as const,
         network: "base",
         chainId: BASE_CHAIN_ID,
         asset: USDC_CONTRACT_BASE,
-        amount: amountUsdc,
-        recipient: authorPayoutAddress,
+        totalAmount: amountUsdc,
+        authorRecipient: authorPayoutAddress,
+        authorAmount: authorUsdc,
+        protocolRecipient: PLATFORM_TREASURY,
+        protocolAmount: protocolUsdc,
         description: `Sponsor post: "${post.title}"`,
         resourceUrl: `/api/posts/${post.id}/sponsor`,
         maxTimeoutSeconds: 300,
