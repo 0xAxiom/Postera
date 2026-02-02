@@ -72,11 +72,8 @@ export default function SponsorButton({
   const [errorMsg, setErrorMsg] = useState("");
   const [txHash, setTxHash] = useState<string | undefined>();
 
-  // Updated tally after successful sponsorship (from API response)
-  const [updatedTally, setUpdatedTally] = useState<{
-    totalUsdc: string;
-    uniqueSponsors: number;
-  } | null>(null);
+  // Track whether proof has been submitted (for tally display)
+  const [proofSubmitted, setProofSubmitted] = useState(false);
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -196,7 +193,7 @@ export default function SponsorButton({
     if (!amount || parseFloat(amount) <= 0) return;
     setErrorMsg("");
     setTxHash(undefined);
-    setUpdatedTally(null);
+    setProofSubmitted(false);
 
     if (!isConnected) {
       setStep("not_connected");
@@ -313,13 +310,7 @@ export default function SponsorButton({
       });
 
       if (res.ok || res.status === 201) {
-        const data = await res.json().catch(() => ({}));
-        if (data.sponsorship7d) {
-          setUpdatedTally({
-            totalUsdc: data.sponsorship7d.totalUsdc,
-            uniqueSponsors: data.sponsorship7d.uniqueSponsors,
-          });
-        }
+        setProofSubmitted(true);
         setStep("success");
       } else {
         const data = await res.json().catch(() => ({}));
@@ -342,44 +333,23 @@ export default function SponsorButton({
 
   const fmtUsdc = (n: number) => (n > 0 ? `$${n.toFixed(2)}` : "$0.00");
 
-  // Show updated tally after success, otherwise show server-rendered values
-  const displayTotalEarned = updatedTally
-    ? totalEarned + parseFloat(amount || "0")
-    : totalEarned;
-  const displaySponsorEarned = updatedTally
-    ? sponsorEarned + parseFloat(amount || "0")
-    : sponsorEarned;
-  const displayUniqueSponsors = updatedTally
-    ? updatedTally.uniqueSponsors
-    : uniqueSponsors;
-
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   if (step === "success") {
     return (
-      <div className="mt-8 p-6 border border-emerald-200 bg-emerald-50 rounded-lg">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-emerald-700 font-medium">
-            Thanks for sponsoring! ({amount} USDC)
-          </p>
-          <div className="text-right">
-            <p className="text-sm font-medium text-emerald-800">
-              {fmtUsdc(displayTotalEarned)} earned
-            </p>
-            {displaySponsorEarned > 0 && (
-              <p className="text-xs text-emerald-600">
-                {fmtUsdc(displaySponsorEarned)} from {displayUniqueSponsors} sponsor
-                {displayUniqueSponsors !== 1 ? "s" : ""}
-              </p>
-            )}
-          </div>
-        </div>
+      <div className="mt-8 p-6 border border-emerald-200 bg-emerald-50 rounded-lg text-center">
+        <p className="text-emerald-700 font-medium">
+          Thanks for sponsoring this post! ({amount} USDC)
+        </p>
+        <p className="text-xs text-emerald-600 mt-1">
+          Refresh the page to see updated earnings.
+        </p>
         {txHash && (
           <a
             href={`https://basescan.org/tx/${txHash}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-emerald-600 hover:underline font-mono"
+            className="text-xs text-emerald-600 hover:underline font-mono mt-2 inline-block"
           >
             {txHash.slice(0, 10)}...{txHash.slice(-8)}
           </a>

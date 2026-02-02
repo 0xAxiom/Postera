@@ -3,81 +3,49 @@ import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 
 export const runtime = "nodejs";
-
-// Fetch an image and return as base64 data URI for Satori
-async function fetchImageAsDataUri(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, { next: { revalidate: 3600 } });
-    if (!res.ok) return null;
-    const contentType = res.headers.get("content-type") || "image/png";
-    const buffer = await res.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString("base64");
-    return `data:${contentType};base64,${base64}`;
-  } catch {
-    return null;
-  }
-}
-
-function fallbackImage() {
-  return new ImageResponse(
-    (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#0f172a",
-        }}
-      >
-        <div style={{ fontSize: "48px", fontWeight: 700, color: "#e2e8f0" }}>
-          Postera
-        </div>
-        <div style={{ fontSize: "20px", color: "#64748b", marginTop: "8px" }}>
-          postera.dev
-        </div>
-      </div>
-    ),
-    { width: 1200, height: 630 }
-  );
-}
+export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: { postId: string } }
 ) {
+  let title = "Postera";
+  let author = "";
+  let badge = "Free";
+  let badgeColor = "#059669";
+  let initial = "P";
+  let preview = "";
+
   try {
     const post = await prisma.post.findUnique({
       where: { id: params.postId },
       include: { agent: true },
     });
 
-    if (!post) return fallbackImage();
+    if (post) {
+      title = (post.title || "Untitled").replace(/[\n\r]/g, " ").trim();
+      if (title.length > 80) title = title.slice(0, 80) + "...";
 
-    const priceBadge =
-      post.isPaywalled && post.priceUsdc
-        ? `$${Number(post.priceUsdc).toFixed(2)} USDC`
-        : "Free";
+      author = post.agent.displayName || "Unknown";
+      initial = author.charAt(0).toUpperCase();
 
-    const badgeColor = post.isPaywalled ? "#7c3aed" : "#059669";
+      if (post.isPaywalled && post.priceUsdc) {
+        badge = "$" + Number(post.priceUsdc).toFixed(2) + " USDC";
+        badgeColor = "#7c3aed";
+      }
 
-    // Try to fetch agent avatar
-    const avatarUri = post.agent.pfpImageUrl
-      ? await fetchImageAsDataUri(post.agent.pfpImageUrl)
-      : null;
+      const raw = (post.previewText || "")
+        .replace(/[\n\r]/g, " ")
+        .replace(/-{2,}/g, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      preview = raw.length > 100 ? raw.slice(0, 100) + "..." : raw;
+    }
+  } catch (e) {
+    console.error("[OG] DB error:", e);
+  }
 
-    // Truncate title
-    const title =
-      post.title.length > 80 ? post.title.slice(0, 80) + "..." : post.title;
-
-    // Truncate preview
-    const preview =
-      post.previewText && post.previewText.length > 120
-        ? post.previewText.slice(0, 120) + "..."
-        : post.previewText || "";
-
+  try {
     return new ImageResponse(
       (
         <div
@@ -86,14 +54,11 @@ export async function GET(
             height: "100%",
             display: "flex",
             flexDirection: "column",
-            justifyContent: "space-between",
             padding: "56px 64px",
             backgroundColor: "#0f172a",
-            backgroundImage:
-              "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+            color: "#f1f5f9",
           }}
         >
-          {/* Top row: Postera brand + price badge */}
           <div
             style={{
               display: "flex",
@@ -101,32 +66,8 @@ export async function GET(
               alignItems: "center",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "22px",
-                  fontWeight: 700,
-                  color: "#e2e8f0",
-                  letterSpacing: "-0.5px",
-                }}
-              >
-                Postera
-              </div>
-              <div
-                style={{
-                  fontSize: "14px",
-                  color: "#64748b",
-                  marginLeft: "8px",
-                }}
-              >
-                postera.dev
-              </div>
+            <div style={{ fontSize: "22px", fontWeight: 700, color: "#e2e8f0" }}>
+              Postera
             </div>
             <div
               style={{
@@ -139,92 +80,69 @@ export async function GET(
                 fontWeight: 600,
               }}
             >
-              {priceBadge}
+              {badge}
             </div>
           </div>
 
-          {/* Center: Title + preview */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              flex: 1,
+              flexGrow: 1,
               justifyContent: "center",
-              gap: "16px",
+              marginTop: "32px",
+              marginBottom: "32px",
             }}
           >
             <div
               style={{
-                fontSize: "52px",
+                fontSize: "48px",
                 fontWeight: 700,
-                color: "#f1f5f9",
-                lineHeight: 1.15,
-                letterSpacing: "-1px",
+                lineHeight: "1.2",
               }}
             >
               {title}
             </div>
-            {preview && (
+            {preview ? (
               <div
                 style={{
-                  fontSize: "22px",
+                  fontSize: "20px",
                   color: "#94a3b8",
-                  lineHeight: 1.4,
+                  marginTop: "16px",
+                  lineHeight: "1.4",
                 }}
               >
                 {preview}
               </div>
-            )}
+            ) : null}
           </div>
 
-          {/* Bottom: Author */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "14px",
-            }}
-          >
-            {avatarUri ? (
-              <img
-                src={avatarUri}
-                width={48}
-                height={48}
-                style={{
-                  borderRadius: "9999px",
-                  objectFit: "cover",
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: "48px",
-                  height: "48px",
-                  borderRadius: "9999px",
-                  backgroundColor: "#334155",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "22px",
-                  fontWeight: 700,
-                  color: "#818cf8",
-                }}
-              >
-                {post.agent.displayName.charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <div
-                style={{
-                  fontSize: "20px",
-                  fontWeight: 600,
-                  color: "#e2e8f0",
-                }}
-              >
-                {post.agent.displayName}
-              </div>
-              <div style={{ fontSize: "16px", color: "#64748b" }}>
-                @{post.agent.handle}
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <div
+              style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "9999px",
+                backgroundColor: "#334155",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "20px",
+                fontWeight: 700,
+                color: "#818cf8",
+              }}
+            >
+              {initial}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                marginLeft: "12px",
+              }}
+            >
+              <div style={{ fontSize: "18px", fontWeight: 600, color: "#e2e8f0" }}>
+                {author}
               </div>
             </div>
           </div>
@@ -232,8 +150,27 @@ export async function GET(
       ),
       { width: 1200, height: 630 }
     );
-  } catch (error) {
-    console.error("[OG /post/[postId]/og]", error);
-    return fallbackImage();
+  } catch (e) {
+    console.error("[OG] Render error:", e);
+    return new ImageResponse(
+      (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#0f172a",
+            color: "#e2e8f0",
+            fontSize: "48px",
+            fontWeight: 700,
+          }}
+        >
+          Postera
+        </div>
+      ),
+      { width: 1200, height: 630 }
+    );
   }
 }
