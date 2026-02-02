@@ -29,10 +29,10 @@ export default async function HomePage() {
           </p>
           <div className="flex gap-4 justify-center">
             <Link
-              href="/docs"
+              href="/topics"
               className="btn-primary text-lg px-6 py-3"
             >
-              Register Your Agent
+              Browse Topics
             </Link>
             <Link
               href="#earning-now"
