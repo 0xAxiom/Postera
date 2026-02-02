@@ -333,6 +333,115 @@ describe("paid intent microcopy on UI pages (Patch 3)", () => {
   });
 });
 
+// ─── Sponsorship ────────────────────────────────────────────────────────────
+
+describe("sponsorship integration", () => {
+  it("sponsor endpoint rejects paywalled posts", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "src/app/api/posts/[postId]/sponsor/route.ts",
+      "utf-8"
+    );
+    expect(source).toContain("isPaywalled");
+    expect(source).toContain("Sponsorship is only available for free posts");
+  });
+
+  it("sponsor endpoint returns 402 with payment requirements", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "src/app/api/posts/[postId]/sponsor/route.ts",
+      "utf-8"
+    );
+    expect(source).toContain("Payment Required");
+    expect(source).toContain("paymentRequirements");
+    expect(source).toContain("status: 402");
+  });
+
+  it("sponsor endpoint records receipt with 90/10 split", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "src/app/api/posts/[postId]/sponsor/route.ts",
+      "utf-8"
+    );
+    expect(source).toContain('kind: "sponsorship"');
+    expect(source).toContain("SPONSOR_SPLIT_BPS_AUTHOR");
+    expect(source).toContain("SPONSOR_SPLIT_BPS_PROTOCOL");
+    expect(source).toContain("9000");
+    expect(source).toContain("1000");
+  });
+
+  it("sponsor endpoint requires no authentication", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "src/app/api/posts/[postId]/sponsor/route.ts",
+      "utf-8"
+    );
+    // Should NOT require JWT auth header
+    expect(source).not.toContain("Authorization");
+    expect(source).not.toContain("JWT");
+  });
+
+  it("sponsor endpoint has no max amount cap", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "src/app/api/posts/[postId]/sponsor/route.ts",
+      "utf-8"
+    );
+    // Amount schema only requires > 0, no max
+    expect(source).toContain("Amount must be greater than 0");
+    expect(source).not.toContain("maxAmount");
+    expect(source).not.toContain("Amount must be less");
+  });
+
+  it("discovery scoring includes sponsorship with lower weight than reads", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/lib/discovery.ts", "utf-8");
+    expect(source).toContain("sponsor_revenue_7d");
+    expect(source).toContain("unique_sponsors_7d");
+    expect(source).toContain("W_SPONSOR_REV");
+    expect(source).toContain("W_SPONSOR_PAYERS");
+  });
+
+  it("sponsorship weights are lower than read weights in constants", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/lib/constants.ts", "utf-8");
+    // W_SPONSOR_REV = 5 < W_REV = 10
+    expect(source).toContain("W_SPONSOR_REV = 5");
+    expect(source).toContain("W_REV = 10");
+    // W_SPONSOR_PAYERS = 3.5 < W_PAYERS = 5
+    expect(source).toContain("W_SPONSOR_PAYERS = 3.5");
+    expect(source).toContain("W_PAYERS = 5");
+  });
+
+  it("PostResultDTO includes sponsorship fields", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/lib/discovery.ts", "utf-8");
+    expect(source).toContain("sponsorRevenue7d: number");
+    expect(source).toContain("uniqueSponsors7d: number");
+  });
+
+  it("PostCard supports sponsorLabel prop", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/components/PostCard.tsx", "utf-8");
+    expect(source).toContain("sponsorLabel");
+  });
+
+  it("sponsor button only shows on free posts", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/app/post/[postId]/page.tsx", "utf-8");
+    expect(source).toContain("!post.isPaywalled");
+    expect(source).toContain("SponsorButton");
+  });
+
+  it("skill.md documents sponsorship flow", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("skill.md", "utf-8");
+    expect(source).toContain("Sponsor a Free Post");
+    expect(source).toContain("/api/posts/{postId}/sponsor");
+    expect(source).toContain("90% author / 10% platform");
+  });
+});
+
 // ─── Prisma Schema: Tags on Post and Publication ────────────────────────────
 
 describe("prisma schema has tags", () => {

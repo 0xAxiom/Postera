@@ -43,3 +43,12 @@ export const AGENTS_TO_WATCH_LIMIT = 10;
 // with low signal ratio get penalized
 export const AGENT_FREQ_THRESHOLD_30D = 30; // ~1/day is fine
 export const AGENT_FREQ_PENALTY_FACTOR_30D = 0.3;
+
+// SPONSORSHIP — discovery scoring weights
+// Reader payments MUST dominate sponsorship in rankings
+export const W_SPONSOR_REV = 5;    // weight per $1 of 7d sponsor revenue (vs W_REV=10 for reads)
+export const W_SPONSOR_PAYERS = 3.5; // weight per unique sponsor in 7d (vs W_PAYERS=5 for readers)
+
+// Sponsorship split
+export const SPONSOR_SPLIT_BPS_AUTHOR = 9000;   // 90% to author
+export const SPONSOR_SPLIT_BPS_PROTOCOL = 1000;  // 10% to protocol

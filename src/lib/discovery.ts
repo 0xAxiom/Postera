@@ -6,6 +6,8 @@ import {
   HALF_LIFE_HOURS,
   A_REV,
   A_PAYERS,
+  W_SPONSOR_REV,
+  W_SPONSOR_PAYERS,
 } from "./constants";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -45,6 +47,8 @@ export interface PostResultDTO {
   score: number;
   revenue7d: number;
   uniquePayers7d: number;
+  sponsorRevenue7d: number;
+  uniqueSponsors7d: number;
   agent: {
     handle: string;
     displayName: string;
@@ -241,6 +245,8 @@ interface PostSearchRow {
   pub_name: string | null;
   revenue_7d: number;
   unique_payers_7d: number;
+  sponsor_revenue_7d: number;
+  unique_sponsors_7d: number;
 }
 
 export async function searchPosts(
@@ -259,10 +265,12 @@ export async function searchPosts(
     WITH post_rev AS (
       SELECT
         pr."postId" AS post_id,
-        COALESCE(SUM(CAST(pr."amountUsdc" AS DOUBLE PRECISION)), 0) AS revenue_7d,
-        COUNT(DISTINCT pr."payerAddress") AS unique_payers_7d
+        COALESCE(SUM(CAST(pr."amountUsdc" AS DOUBLE PRECISION)) FILTER (WHERE pr.kind = 'read_access'), 0) AS revenue_7d,
+        COUNT(DISTINCT pr."payerAddress") FILTER (WHERE pr.kind = 'read_access') AS unique_payers_7d,
+        COALESCE(SUM(CAST(pr."amountUsdc" AS DOUBLE PRECISION)) FILTER (WHERE pr.kind = 'sponsorship'), 0) AS sponsor_revenue_7d,
+        COUNT(DISTINCT pr."payerAddress") FILTER (WHERE pr.kind = 'sponsorship') AS unique_sponsors_7d
       FROM "PaymentReceipt" pr
-      WHERE pr.kind = 'read_access'
+      WHERE pr.kind IN ('read_access', 'sponsorship')
         AND pr."postId" IS NOT NULL
         AND pr."createdAt" >= ${sevenDaysAgo}
       GROUP BY pr."postId"
@@ -281,7 +289,9 @@ export async function searchPosts(
       pub.id AS pub_id,
       pub.name AS pub_name,
       COALESCE(prvw.revenue_7d, 0) AS revenue_7d,
-      COALESCE(prvw.unique_payers_7d, 0)::int AS unique_payers_7d
+      COALESCE(prvw.unique_payers_7d, 0)::int AS unique_payers_7d,
+      COALESCE(prvw.sponsor_revenue_7d, 0) AS sponsor_revenue_7d,
+      COALESCE(prvw.unique_sponsors_7d, 0)::int AS unique_sponsors_7d
     FROM "Post" p
     INNER JOIN "Agent" a ON a.id = p."agentId"
     LEFT JOIN "Publication" pub ON pub.id = p."publicationId"
@@ -316,7 +326,10 @@ export async function searchPosts(
       : 999;
 
     const rawScore =
-      Number(row.revenue_7d) * W_REV + Number(row.unique_payers_7d) * W_PAYERS;
+      Number(row.revenue_7d) * W_REV +
+      Number(row.unique_payers_7d) * W_PAYERS +
+      Number(row.sponsor_revenue_7d) * W_SPONSOR_REV +
+      Number(row.unique_sponsors_7d) * W_SPONSOR_PAYERS;
     const score = rawScore * timeDecay(ageHours);
 
     return {
@@ -335,6 +348,8 @@ export async function searchPosts(
       score,
       revenue7d: Number(row.revenue_7d),
       uniquePayers7d: Number(row.unique_payers_7d),
+      sponsorRevenue7d: Number(row.sponsor_revenue_7d),
+      uniqueSponsors7d: Number(row.unique_sponsors_7d),
       agent: {
         handle: row.agent_handle,
         displayName: row.agent_display_name,
@@ -508,6 +523,8 @@ interface TopicPostRow {
   pub_name: string | null;
   revenue_7d: number;
   unique_payers_7d: number;
+  sponsor_revenue_7d: number;
+  unique_sponsors_7d: number;
 }
 
 interface TopicAgentRow {
@@ -559,10 +576,12 @@ export async function fetchTopicData(
     WITH post_rev AS (
       SELECT
         pr."postId" AS post_id,
-        COALESCE(SUM(CAST(pr."amountUsdc" AS DOUBLE PRECISION)), 0) AS revenue_7d,
-        COUNT(DISTINCT pr."payerAddress") AS unique_payers_7d
+        COALESCE(SUM(CAST(pr."amountUsdc" AS DOUBLE PRECISION)) FILTER (WHERE pr.kind = 'read_access'), 0) AS revenue_7d,
+        COUNT(DISTINCT pr."payerAddress") FILTER (WHERE pr.kind = 'read_access') AS unique_payers_7d,
+        COALESCE(SUM(CAST(pr."amountUsdc" AS DOUBLE PRECISION)) FILTER (WHERE pr.kind = 'sponsorship'), 0) AS sponsor_revenue_7d,
+        COUNT(DISTINCT pr."payerAddress") FILTER (WHERE pr.kind = 'sponsorship') AS unique_sponsors_7d
       FROM "PaymentReceipt" pr
-      WHERE pr.kind = 'read_access'
+      WHERE pr.kind IN ('read_access', 'sponsorship')
         AND pr."postId" IS NOT NULL
         AND pr."createdAt" >= ${sevenDaysAgo}
       GROUP BY pr."postId"
@@ -581,7 +600,9 @@ export async function fetchTopicData(
       pub.id AS pub_id,
       pub.name AS pub_name,
       COALESCE(prvw.revenue_7d, 0) AS revenue_7d,
-      COALESCE(prvw.unique_payers_7d, 0)::int AS unique_payers_7d
+      COALESCE(prvw.unique_payers_7d, 0)::int AS unique_payers_7d,
+      COALESCE(prvw.sponsor_revenue_7d, 0) AS sponsor_revenue_7d,
+      COALESCE(prvw.unique_sponsors_7d, 0)::int AS unique_sponsors_7d
     FROM "Post" p
     INNER JOIN "Agent" a ON a.id = p."agentId"
     LEFT JOIN "Publication" pub ON pub.id = p."publicationId"
@@ -601,7 +622,10 @@ export async function fetchTopicData(
       ? (now.getTime() - new Date(row.published_at).getTime()) / (1000 * 60 * 60)
       : 999;
     const rawScore =
-      Number(row.revenue_7d) * W_REV + Number(row.unique_payers_7d) * W_PAYERS;
+      Number(row.revenue_7d) * W_REV +
+      Number(row.unique_payers_7d) * W_PAYERS +
+      Number(row.sponsor_revenue_7d) * W_SPONSOR_REV +
+      Number(row.unique_sponsors_7d) * W_SPONSOR_PAYERS;
     const score = rawScore * timeDecay(ageHours);
 
     return {
@@ -620,6 +644,8 @@ export async function fetchTopicData(
       score,
       revenue7d: Number(row.revenue_7d),
       uniquePayers7d: Number(row.unique_payers_7d),
+      sponsorRevenue7d: Number(row.sponsor_revenue_7d),
+      uniqueSponsors7d: Number(row.unique_sponsors_7d),
       agent: {
         handle: row.agent_handle,
         displayName: row.agent_display_name,

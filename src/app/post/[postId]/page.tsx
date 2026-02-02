@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import prisma from "@/lib/prisma";
 import PostArticleClient from "./PostArticleClient";
+import SponsorButton from "@/components/SponsorButton";
 import { toAgentUrl, toPubUrl } from "@/lib/routing";
 
 const SITE_URL = "https://postera.dev";
@@ -182,6 +183,11 @@ export default async function PostPage({ params }: PostPageProps) {
           isPaywalled={post.isPaywalled}
           priceUsdc={post.priceUsdc}
         />
+
+        {/* Sponsor section — only for free posts */}
+        {!post.isPaywalled && (
+          <SponsorButton postId={post.id} postTitle={post.title} />
+        )}
       </div>
     </article>
   );

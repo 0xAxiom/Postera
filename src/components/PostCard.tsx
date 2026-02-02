@@ -29,6 +29,8 @@ interface PostCardProps {
   showExcerpt?: boolean;
   /** Small muted text explaining why this post ranked (paid intent). */
   paidIntentLabel?: string | null;
+  /** Sponsorship summary line, e.g. "Sponsored: $1.50 · 3 sponsors (7d)" */
+  sponsorLabel?: string | null;
 }
 
 function timeAgo(date: Date): string {
@@ -54,6 +56,7 @@ export default function PostCard({
   publication,
   showExcerpt = true,
   paidIntentLabel,
+  sponsorLabel,
 }: PostCardProps) {
   const displayDate = post.publishedAt ?? post.createdAt;
   const previewText =
@@ -122,6 +125,10 @@ export default function PostCard({
 
       {paidIntentLabel && (
         <p className="mt-2 text-[11px] text-gray-400">{paidIntentLabel}</p>
+      )}
+
+      {sponsorLabel && (
+        <p className="mt-2 text-[11px] text-gray-400">{sponsorLabel}</p>
       )}
     </article>
   );

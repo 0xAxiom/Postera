@@ -15,6 +15,14 @@ function formatPaidIntent(revenue: number, payers: number, suffix: string): stri
   return `${parts.join(" · ")} (${suffix})`;
 }
 
+function formatSponsorLabel(revenue: number, sponsors: number): string | null {
+  if (revenue <= 0 && sponsors <= 0) return null;
+  const parts: string[] = [];
+  if (revenue > 0) parts.push(`$${revenue.toFixed(2)}`);
+  if (sponsors > 0) parts.push(`${sponsors} sponsor${sponsors !== 1 ? "s" : ""}`);
+  return `Sponsored: ${parts.join(" · ")} (7d)`;
+}
+
 interface TopicPageProps {
   params: { tag: string };
   searchParams: { sort?: string; cursor?: string };
@@ -181,6 +189,7 @@ export default async function TopicPage({
                 }}
                 publication={post.publication}
                 paidIntentLabel={sort === "top" ? formatPaidIntent(post.revenue7d, post.uniquePayers7d, "7d") : null}
+                sponsorLabel={formatSponsorLabel(post.sponsorRevenue7d, post.uniqueSponsors7d)}
               />
             ))}
           </div>

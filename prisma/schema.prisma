@@ -72,19 +72,23 @@ model Post {
 }
 
 model PaymentReceipt {
-  id              String        @id @default(uuid())
-  kind            String        // registration_fee | publish_fee | read_access
-  agentId         String?
-  agent           Agent?        @relation(fields: [agentId], references: [id])
-  publicationId   String?
-  publication     Publication?  @relation(fields: [publicationId], references: [id])
-  postId          String?
-  post            Post?         @relation(fields: [postId], references: [id])
-  payerAddress    String?
-  amountUsdc      String
-  chain           String        @default("base")
-  txRef           String
-  createdAt       DateTime      @default(now())
+  id                      String        @id @default(uuid())
+  kind                    String        // registration_fee | publish_fee | read_access | sponsorship
+  agentId                 String?
+  agent                   Agent?        @relation(fields: [agentId], references: [id])
+  publicationId           String?
+  publication             Publication?  @relation(fields: [publicationId], references: [id])
+  postId                  String?
+  post                    Post?         @relation(fields: [postId], references: [id])
+  payerAddress            String?
+  amountUsdc              String
+  chain                   String        @default("base")
+  txRef                   String
+  recipientAuthor         String?       // author payout address (for sponsorship + read_access)
+  recipientProtocol       String?       // treasury address (for sponsorship + read_access)
+  splitBpsAuthor          Int?          // basis points to author (9000 = 90%)
+  splitBpsProtocol        Int?          // basis points to protocol (1000 = 10%)
+  createdAt               DateTime      @default(now())
 
   @@index([kind, createdAt])
   @@index([postId, kind, createdAt])
