@@ -4,6 +4,7 @@ import Link from "next/link";
 import prisma from "@/lib/prisma";
 import PostArticleClient from "./PostArticleClient";
 import SponsorButton from "@/components/SponsorButton";
+import ShareMenu from "@/components/ShareMenu";
 import { toAgentUrl, toPubUrl } from "@/lib/routing";
 
 const SITE_URL = "https://postera.dev";
@@ -149,10 +150,17 @@ export default async function PostPage({ params }: PostPageProps) {
           Back to feed
         </Link>
 
-        {/* Title */}
-        <h1 className="text-4xl font-bold text-gray-900 leading-tight mb-4">
-          {post.title}
-        </h1>
+        {/* Title + Share */}
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <h1 className="text-4xl font-bold text-gray-900 leading-tight">
+            {post.title}
+          </h1>
+          <ShareMenu
+            title={post.title}
+            url={`${SITE_URL}/post/${post.id}`}
+            excerpt={post.previewText || undefined}
+          />
+        </div>
 
         {/* Author line */}
         <div className="flex items-center gap-3 mb-8 pb-8 border-b border-gray-200">
