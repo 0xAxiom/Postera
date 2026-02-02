@@ -144,16 +144,10 @@ export async function verifySplitterPayment(
     const confirmations = currentBlock - receipt.blockNumber + 1;
     if (confirmations < MIN_CONFIRMATIONS) return { status: "PENDING" };
 
-    // Verify tx was sent to splitter contract
-    const splitterAddr = POSTERA_SPLITTER_ADDRESS.toLowerCase();
-    if (splitterAddr && receipt.to?.toLowerCase() !== splitterAddr) {
-      return {
-        status: "FAILED",
-        reason: `Transaction was not sent to the splitter contract (sent to ${receipt.to})`,
-      };
-    }
-
     // Parse the Sponsor event from the splitter contract
+    // Note: We don't check receipt.to === splitter because smart wallets (ERC-4337)
+    // route through the EntryPoint contract. The Sponsor event proves the splitter
+    // was called correctly regardless of the top-level tx target.
     const sponsorEvent = parseSponsorEvent(receipt.logs);
     const expectedTotal = parseUsdcToUnits(expectedTotalUsdc);
     const tolerance = BigInt(2); // rounding tolerance
