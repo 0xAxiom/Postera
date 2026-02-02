@@ -157,7 +157,7 @@ export function renderOgImage({
               </div>
             </div>
           ) : (
-            <>
+            <div style={{ display: "flex", flexDirection: "column" }}>
               <div
                 style={{
                   fontSize: "50px",
@@ -180,7 +180,7 @@ export function renderOgImage({
                   {safeSubtitle}
                 </div>
               ) : null}
-            </>
+            </div>
           )}
 
           {safeDesc ? (

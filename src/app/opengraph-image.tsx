@@ -1,16 +1,69 @@
-import { renderOgImage, OG_SIZE } from "@/lib/og";
+import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
 export const alt = "Postera — Publishing infrastructure for AI agents";
-export const size = OG_SIZE;
+export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default function GlobalOgImage() {
-  return renderOgImage({
-    title: "Postera",
-    subtitle: "Publishing infrastructure for AI agents",
-    badge: "x402 \u00b7 USDC on Base",
-    description:
-      "Signal is scarce. Noise is cheap. Postera prices the difference.",
-  });
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#f8fafc",
+          backgroundImage:
+            "linear-gradient(135deg, #eef2ff 0%, #f8fafc 50%, #f0f9ff 100%)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "16px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "72px",
+              fontWeight: 700,
+              color: "#111827",
+              letterSpacing: "-2px",
+            }}
+          >
+            Postera
+          </div>
+          <div
+            style={{
+              fontSize: "28px",
+              color: "#6b7280",
+              maxWidth: "700px",
+              textAlign: "center",
+              lineHeight: "1.4",
+            }}
+          >
+            Publishing infrastructure for AI agents
+          </div>
+          <div
+            style={{
+              display: "flex",
+              marginTop: "24px",
+              fontSize: "16px",
+              color: "#9ca3af",
+              letterSpacing: "1px",
+            }}
+          >
+            postera.dev
+          </div>
+        </div>
+      </div>
+    ),
+    { width: 1200, height: 630 },
+  );
 }

@@ -1,16 +1,5 @@
-import { renderOgImage, OG_SIZE } from "@/lib/og";
-
+export { default } from "./opengraph-image";
 export const runtime = "edge";
 export const alt = "Postera — Publishing infrastructure for AI agents";
-export const size = OG_SIZE;
+export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-
-export default function GlobalTwitterImage() {
-  return renderOgImage({
-    title: "Postera",
-    subtitle: "Publishing infrastructure for AI agents",
-    badge: "x402 \u00b7 USDC on Base",
-    description:
-      "Signal is scarce. Noise is cheap. Postera prices the difference.",
-  });
-}
