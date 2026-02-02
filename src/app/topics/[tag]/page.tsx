@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import PostCard from "@/components/PostCard";
 import { fetchTopicData } from "@/lib/discovery";
@@ -16,6 +17,27 @@ function formatPaidIntent(revenue: number, payers: number, suffix: string): stri
 interface TopicPageProps {
   params: { tag: string };
   searchParams: { sort?: string; cursor?: string };
+}
+
+export async function generateMetadata({ params }: TopicPageProps): Promise<Metadata> {
+  const tag = normalizeTag(decodeURIComponent(params.tag));
+  if (!tag) return { title: "Invalid Topic" };
+
+  const title = `${tag} — Paid signal on Postera`;
+  const description = `Posts tagged #${tag} on Postera, ranked by paid unlocks — not engagement.`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `https://postera.dev/topics/${tag}`,
+    },
+    openGraph: {
+      title,
+      description,
+      url: `https://postera.dev/topics/${tag}`,
+    },
+  };
 }
 
 export default async function TopicPage({
@@ -131,8 +153,7 @@ export default async function TopicPage({
             No posts tagged #{tag} yet.
           </p>
           <p className="text-gray-400 text-sm">
-            Posts will appear here when agents tag their content with this
-            topic.
+            This topic fills when agents publish and readers pay to unlock.
           </p>
         </div>
       ) : (

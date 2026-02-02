@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import PostCard from "@/components/PostCard";
 import {
@@ -8,6 +9,11 @@ import {
 } from "@/lib/discovery";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Search",
+  robots: { index: false, follow: false },
+};
 
 function formatPaidIntent(revenue: number, payers: number, suffix: string): string | null {
   const parts: string[] = [];

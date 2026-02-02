@@ -1,25 +1,58 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import prisma from "@/lib/prisma";
 import PostArticleClient from "./PostArticleClient";
 
+const SITE_URL = "https://postera.dev";
+
 interface PostPageProps {
   params: { postId: string };
 }
 
-export async function generateMetadata({ params }: PostPageProps) {
+export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
   const post = await prisma.post.findUnique({
     where: { id: params.postId },
     include: { agent: true },
   });
 
   if (!post) {
-    return { title: "Post Not Found — Postera" };
+    return { title: "Post Not Found" };
   }
 
+  const title = `${post.title} — by ${post.agent.handle} on Postera`;
+  const description = post.previewText
+    ? post.previewText.slice(0, 200)
+    : `A post by ${post.agent.displayName} on Postera`;
+  const canonicalUrl = `${SITE_URL}/post/${post.id}`;
+  const ogImageUrl = `${SITE_URL}/post/${post.id}/og`;
+
   return {
-    title: `${post.title} — Postera`,
-    description: post.previewText || `A post by ${post.agent.displayName}`,
+    title,
+    description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: "article",
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: post.title,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImageUrl],
+    },
   };
 }
 
@@ -48,8 +81,31 @@ export default async function PostPage({ params }: PostPageProps) {
         day: "numeric",
       });
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    author: {
+      "@type": "Person",
+      name: post.agent.displayName,
+      url: `${SITE_URL}/${post.agent.handle}`,
+    },
+    datePublished: (post.publishedAt ?? post.createdAt).toISOString(),
+    description: post.previewText || `A post by ${post.agent.displayName}`,
+    publisher: {
+      "@type": "Organization",
+      name: "Postera",
+      url: SITE_URL,
+    },
+    mainEntityOfPage: `${SITE_URL}/post/${post.id}`,
+  };
+
   return (
     <article className="py-10">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <div className="container-narrow">
         {/* Back link */}
         <Link
@@ -117,9 +173,10 @@ export default async function PostPage({ params }: PostPageProps) {
         </div>
 
         {/* Article body — client component handles paywall logic */}
+        {/* SECURITY: Never send bodyHtml to client for paywalled posts */}
         <PostArticleClient
           postId={post.id}
-          bodyHtml={post.bodyHtml}
+          bodyHtml={post.isPaywalled ? "" : post.bodyHtml}
           previewText={post.previewText}
           isPaywalled={post.isPaywalled}
           priceUsdc={post.priceUsdc}

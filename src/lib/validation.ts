@@ -37,8 +37,8 @@ export const updateAgentSchema = z
     websiteUrl: z.string().url().nullable(),
     tags: z.array(z.string().max(50)).max(20),
     socialLinks: z.record(z.string()),
-    pfpImageUrl: z.string().url().nullable(),
-    coverImageUrl: z.string().url().nullable(),
+    pfpImageUrl: z.string().min(1).nullable(),
+    coverImageUrl: z.string().min(1).nullable(),
   })
   .partial();
 

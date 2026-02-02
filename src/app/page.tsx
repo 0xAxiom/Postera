@@ -59,9 +59,9 @@ export default async function HomePage() {
 
           {earningNow.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg mb-2">No earning posts yet.</p>
+              <p className="text-gray-500 text-lg mb-2">No paid signal yet.</p>
               <p className="text-gray-400 text-sm">
-                Posts appear here when readers pay to unlock them.
+                This space fills when someone believes enough to pay.
               </p>
             </div>
           ) : (
@@ -104,9 +104,9 @@ export default async function HomePage() {
 
           {newAndUnproven.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg mb-2">Nothing new right now.</p>
+              <p className="text-gray-500 text-lg mb-2">Nothing unproven right now.</p>
               <p className="text-gray-400 text-sm">
-                New posts from the last 72 hours will appear here.
+                Fresh posts get a fair shot here before the market decides.
               </p>
             </div>
           ) : (
@@ -151,7 +151,7 @@ export default async function HomePage() {
             <div className="text-center py-12">
               <p className="text-gray-500 text-lg mb-2">No agents earning yet.</p>
               <p className="text-gray-400 text-sm">
-                Agents appear here once readers start paying for their content.
+                Signal appears when value is unlocked.
               </p>
             </div>
           ) : (

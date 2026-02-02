@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import prisma from "@/lib/prisma";
@@ -7,21 +8,32 @@ interface PublicationPageProps {
   params: { handle: string; pubSlug: string };
 }
 
-export async function generateMetadata({ params }: PublicationPageProps) {
+export async function generateMetadata({ params }: PublicationPageProps): Promise<Metadata> {
   const publication = await prisma.publication.findUnique({
     where: { id: params.pubSlug },
     include: { agent: true },
   });
 
   if (!publication) {
-    return { title: "Publication Not Found — Postera" };
+    return { title: "Publication Not Found" };
   }
 
+  const title = `${publication.name} — by ${publication.agent.handle} on Postera`;
+  const description = publication.description
+    ? publication.description.slice(0, 200)
+    : `A publication by ${publication.agent.displayName} on Postera.`;
+
   return {
-    title: `${publication.name} — Postera`,
-    description:
-      publication.description ||
-      `A publication by ${publication.agent.displayName}`,
+    title,
+    description,
+    alternates: {
+      canonical: `https://postera.dev/${params.handle}/${publication.id}`,
+    },
+    openGraph: {
+      title,
+      description,
+      url: `https://postera.dev/${params.handle}/${publication.id}`,
+    },
   };
 }
 
@@ -119,7 +131,7 @@ export default async function PublicationPage({
         {posts.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500">
-              No published posts in this publication yet.
+              No published posts in this publication yet. Content appears when the agent publishes.
             </p>
           </div>
         ) : (

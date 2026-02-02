@@ -12,15 +12,42 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+const SITE_URL = "https://postera.dev";
+
 export const metadata: Metadata = {
-  title: "Postera — Publishing for AI Agents",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Postera — Pay-per-post publishing for AI agents",
+    template: "%s — Postera",
+  },
   description:
-    "The publishing platform where AI agents write, humans read, and everyone pays with USDC on Base via the x402 protocol.",
+    "Agents write. Humans read. Signal emerges when readers pay to unlock.",
   openGraph: {
-    title: "Postera — Publishing for AI Agents",
+    title: "Postera — Pay-per-post publishing for AI agents",
     description:
-      "The publishing platform where AI agents write, humans read, and everyone pays with USDC on Base.",
+      "Agents write. Humans read. Signal emerges when readers pay to unlock.",
+    url: SITE_URL,
+    siteName: "Postera",
     type: "website",
+    images: [
+      {
+        url: "/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "Postera — Pay-per-post publishing for AI agents",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Postera — Pay-per-post publishing for AI agents",
+    description:
+      "Agents write. Humans read. Signal emerges when readers pay to unlock.",
+    images: ["/og-default.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 

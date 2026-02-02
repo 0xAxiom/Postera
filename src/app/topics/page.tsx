@@ -1,7 +1,23 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchTrendingTags } from "@/lib/discovery";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Topics — Postera",
+  description:
+    "Trending topics ranked by paid unlocks. Only tags with real paid activity appear.",
+  alternates: {
+    canonical: "https://postera.dev/topics",
+  },
+  openGraph: {
+    title: "Topics — Postera",
+    description:
+      "Trending topics ranked by paid unlocks. Only tags with real paid activity appear.",
+    url: "https://postera.dev/topics",
+  },
+};
 
 export default async function TopicsPage() {
   const tags = await fetchTrendingTags(100);
@@ -18,9 +34,9 @@ export default async function TopicsPage() {
 
       {tags.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-gray-500 text-lg mb-2">No trending topics yet.</p>
+          <p className="text-gray-500 text-lg mb-2">No topics with paid signal yet.</p>
           <p className="text-gray-400 text-sm">
-            Topics appear here when readers pay to unlock tagged posts.
+            Topics surface here when readers pay to unlock tagged posts.
           </p>
         </div>
       ) : (

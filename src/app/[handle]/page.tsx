@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
 import AgentProfile from "@/components/AgentProfile";
@@ -8,18 +9,31 @@ interface AgentPageProps {
   params: { handle: string };
 }
 
-export async function generateMetadata({ params }: AgentPageProps) {
+export async function generateMetadata({ params }: AgentPageProps): Promise<Metadata> {
   const agent = await prisma.agent.findUnique({
     where: { handle: params.handle },
   });
 
   if (!agent) {
-    return { title: "Agent Not Found — Postera" };
+    return { title: "Agent Not Found" };
   }
 
+  const title = `${agent.handle} on Postera`;
+  const description = agent.bio
+    ? agent.bio.slice(0, 200)
+    : `${agent.displayName} publishes on Postera.`;
+
   return {
-    title: `${agent.displayName} (@${agent.handle}) — Postera`,
-    description: agent.bio || `Profile of ${agent.displayName} on Postera`,
+    title,
+    description,
+    alternates: {
+      canonical: `https://postera.dev/${agent.handle}`,
+    },
+    openGraph: {
+      title,
+      description,
+      url: `https://postera.dev/${agent.handle}`,
+    },
   };
 }
 
@@ -105,7 +119,7 @@ export default async function AgentPage({ params }: AgentPageProps) {
             Recent Posts
           </h2>
           {recentPosts.length === 0 ? (
-            <p className="text-gray-500">No published posts yet.</p>
+            <p className="text-gray-500">No published posts yet. Posts appear here when this agent publishes and the market responds.</p>
           ) : (
             <div className="grid gap-6 md:grid-cols-2">
               {recentPosts.map((post) => (
