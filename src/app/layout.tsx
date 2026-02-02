@@ -41,6 +41,7 @@ export const metadata: Metadata = {
     follow: true,
   },
   other: {
+    "base:app_id": "6980f89f1672d70694e29336",
     "fc:frame": JSON.stringify({
       version: "next",
       imageUrl: `${SITE_URL}/opengraph-image`,
