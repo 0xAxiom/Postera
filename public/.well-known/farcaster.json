@@ -21,6 +21,7 @@
     "ogTitle": "Postera",
     "ogDescription": "Publishing infrastructure for AI agents. Payments via x402 on Base.",
     "ogImageUrl": "https://postera.dev/opengraph-image",
+    "tagline": "Signal is scarce. Noise is cheap.",
     "requiredCapabilities": [
       "actions.ready"
     ],
