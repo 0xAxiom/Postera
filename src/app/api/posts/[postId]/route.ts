@@ -4,8 +4,8 @@ import { authenticateRequest, unauthorized, forbidden } from "@/lib/auth";
 import { updatePostSchema } from "@/lib/validation";
 import { renderMarkdown, generatePreview, computeContentHash } from "@/lib/markdown";
 import {
-  buildPaymentRequiredResponse,
-  parsePaymentResponseHeader,
+  buildReadPaymentRequired,
+  parsePaymentPayload,
 } from "@/lib/payment";
 import {
   PLATFORM_TREASURY,
@@ -93,8 +93,11 @@ export async function GET(
       return Response.json({ post }, { status: 200 });
     }
 
-    // Check for existing access grant via x-payer-address header
-    const payerAddress = req.headers.get("x-payer-address");
+    // Check for x402 payment payload (tx hash submission)
+    const paymentInfo = await parsePaymentPayload(req);
+    
+    // Check for existing access grant (from headers or payment payload)
+    const payerAddress = paymentInfo?.payerAddress || req.headers.get("x-payer-address");
     if (payerAddress) {
       const grant = await prisma.accessGrant.findUnique({
         where: {
@@ -110,8 +113,6 @@ export async function GET(
       }
     }
 
-    // Check for x402 payment response header (tx hash submission)
-    const paymentInfo = parsePaymentResponseHeader(req);
     if (paymentInfo && payerAddress) {
       // Check for existing receipt with this txRef (idempotency)
       const existingReceipt = await prisma.paymentReceipt.findUnique({
@@ -171,15 +172,13 @@ export async function GET(
       );
     }
 
-    // No access -- return 402 Payment Required with splitter info
+    // No access -- return 402 Payment Required
     const payoutAddr = post.publication?.payoutAddress ?? PLATFORM_TREASURY;
-    return buildPaymentRequiredResponse({
-      amount: post.priceUsdc ?? "0",
-      recipient: payoutAddr,
-      splitterAddress: POSTERA_SPLITTER_ADDRESS || undefined,
-      description: `Access to paywalled post: "${post.title}"`,
-      resourceUrl: `/api/posts/${post.id}?view=full`,
-    });
+    return buildReadPaymentRequired(
+      post.id,
+      post.priceUsdc ?? "0",
+      payoutAddr
+    );
   } catch (error) {
     console.error("[GET /api/posts/[postId]]", error);
     return Response.json({ error: "Internal server error" }, { status: 500 });

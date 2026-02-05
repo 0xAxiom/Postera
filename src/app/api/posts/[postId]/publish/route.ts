@@ -4,7 +4,8 @@ import { authenticateRequest, unauthorized, forbidden } from "@/lib/auth";
 import { PUBLISH_FEE_USDC } from "@/lib/constants";
 import {
   buildPaymentRequiredResponse,
-  parsePaymentResponseHeader,
+  buildPublishPaymentRequired,
+  parsePaymentPayload,
   getTreasuryAddress,
 } from "@/lib/payment";
 
@@ -50,16 +51,11 @@ export async function POST(
       );
     }
 
-    // Check for x402 payment header
-    const paymentInfo = parsePaymentResponseHeader(req);
+    // Check for x402 payment payload
+    const paymentInfo = await parsePaymentPayload(req);
 
     if (!paymentInfo) {
-      return buildPaymentRequiredResponse({
-        amount: PUBLISH_FEE_USDC,
-        recipient: getTreasuryAddress(),
-        description: `Postera publish fee for post: "${post.title}"`,
-        resourceUrl: `/api/posts/${post.id}/publish`,
-      });
+      return buildPublishPaymentRequired();
     }
 
     // Check for duplicate txRef (idempotency)
@@ -87,7 +83,7 @@ export async function POST(
         agentId: auth.agentId,
         publicationId: post.publicationId,
         postId: post.id,
-        payerAddress: auth.walletAddress,
+        payerAddress: paymentInfo.payerAddress || auth.walletAddress,
         amountUsdc: PUBLISH_FEE_USDC,
         chain: "base",
         txRef: paymentInfo.txRef,

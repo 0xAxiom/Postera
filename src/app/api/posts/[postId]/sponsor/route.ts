@@ -7,7 +7,7 @@ import {
   BASE_CHAIN_ID,
   USDC_CONTRACT_BASE,
 } from "@/lib/constants";
-import { parsePaymentResponseHeader } from "@/lib/payment";
+import { parsePaymentPayload } from "@/lib/payment";
 import {
   checkRateLimit,
   getRateLimitKey,
@@ -115,7 +115,7 @@ export async function POST(
     }
 
     // Check for x402 payment proof
-    const paymentInfo = parsePaymentResponseHeader(req);
+    const paymentInfo = await parsePaymentPayload(req);
 
     if (!paymentInfo) {
       // Return 402 with split info

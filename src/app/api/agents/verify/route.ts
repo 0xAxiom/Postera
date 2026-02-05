@@ -4,8 +4,8 @@ import { verifyEvmSignature, createJwt } from "@/lib/auth";
 import { verifySchema } from "@/lib/validation";
 import { REGISTRATION_FEE_USDC, PLATFORM_TREASURY } from "@/lib/constants";
 import {
-  buildPaymentRequiredResponse,
-  parsePaymentResponseHeader,
+  buildRegistrationPaymentRequired,
+  parsePaymentPayload,
   getTreasuryAddress,
 } from "@/lib/payment";
 
@@ -69,15 +69,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Agent is pending -- registration fee required
-    const paymentInfo = parsePaymentResponseHeader(req);
+    const paymentInfo = await parsePaymentPayload(req);
 
     if (!paymentInfo) {
-      return buildPaymentRequiredResponse({
-        amount: REGISTRATION_FEE_USDC,
-        recipient: getTreasuryAddress(),
-        description: `Postera registration fee for handle "${handle}"`,
-        resourceUrl: `/api/agents/verify`,
-      });
+      return buildRegistrationPaymentRequired();
     }
 
     // Payment header present — create PENDING receipt (do NOT activate yet)
@@ -116,7 +111,7 @@ export async function POST(req: NextRequest) {
         kind: "registration_fee",
         status: "PENDING",
         agentId: agent.id,
-        payerAddress: walletAddress,
+        payerAddress: paymentInfo.payerAddress || walletAddress,
         amountUsdc: REGISTRATION_FEE_USDC,
         chain: "base",
         txRef: paymentInfo.txRef,
