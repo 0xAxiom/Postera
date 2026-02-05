@@ -143,9 +143,9 @@ export default function PaywallModal({
 
       if (res.status === 402) {
         const data = await res.json();
-        const reqs = data.paymentRequirements;
-        const recipient = reqs?.[0]?.recipient || reqs?.authorRecipient;
-        const amount = reqs?.[0]?.amount || reqs?.totalAmount || priceUsdc;
+        const reqs = data.accepts;
+        const recipient = reqs?.[0]?.payTo;
+        const amount = reqs?.[0]?.amount || priceUsdc;
         if (recipient) {
           setOuterStep("hook");
           payment.execute(recipient as `0x${string}`, amount);
