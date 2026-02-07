@@ -12,7 +12,7 @@ export async function GET() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#0B1020",
+          backgroundColor: "#0a0a0a",
           borderRadius: "220px",
         }}
       >
@@ -20,8 +20,9 @@ export async function GET() {
           style={{
             fontSize: "520px",
             fontWeight: 700,
-            color: "#f1f5f9",
+            color: "#e5e5e5",
             letterSpacing: "-20px",
+            fontFamily: "Inter, system-ui, sans-serif",
           }}
         >
           P

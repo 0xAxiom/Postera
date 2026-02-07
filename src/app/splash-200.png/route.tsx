@@ -12,15 +12,16 @@ export async function GET() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#0B1020",
+          backgroundColor: "#0a0a0a",
         }}
       >
         <div
           style={{
             fontSize: "96px",
             fontWeight: 700,
-            color: "#f1f5f9",
+            color: "#e5e5e5",
             letterSpacing: "-4px",
+            fontFamily: "Inter, system-ui, sans-serif",
           }}
         >
           P

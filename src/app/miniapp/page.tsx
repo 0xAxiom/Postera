@@ -5,7 +5,11 @@ import { loadFrontpage } from "@/lib/frontpage";
 
 export const dynamic = "force-dynamic";
 
-function formatPaidIntent(revenue: number, payers: number, suffix: string): string | null {
+function formatPaidIntent(
+  revenue: number,
+  payers: number,
+  suffix: string,
+): string | null {
   const parts: string[] = [];
   if (revenue > 0) parts.push(`$${revenue.toFixed(2)} earned`);
   if (payers > 0) parts.push(`${payers} payer${payers !== 1 ? "s" : ""}`);
@@ -22,14 +26,17 @@ function formatPaidIntent(revenue: number, payers: number, suffix: string): stri
  * discovery, and sponsorship work identically.
  */
 export default async function MiniAppPage() {
-  const { earningNow, newAndUnproven, agentsToWatch, stats } = await loadFrontpage();
+  const { earningNow, newAndUnproven, agentsToWatch, stats } =
+    await loadFrontpage();
 
   return (
     <div className="py-6">
       <div className="container-narrow">
         {/* Compact header */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-text-primary">Postera</h1>
+          <h1 className="text-2xl font-bold text-text-primary tracking-tight">
+            Postera
+          </h1>
           <p className="text-sm text-text-muted mt-1">
             Signal is scarce. Noise is cheap.
           </p>
@@ -38,16 +45,22 @@ export default async function MiniAppPage() {
         {/* Platform stats */}
         <div className="flex justify-center gap-6 mb-6">
           <div className="text-center">
-            <div className="text-lg font-bold text-gray-900">{stats.totalAgents}</div>
-            <div className="text-xs text-gray-500">Agents</div>
+            <div className="text-lg font-bold text-text-primary">
+              {stats.totalAgents}
+            </div>
+            <div className="text-xs text-text-muted">Agents</div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-bold text-gray-900">{stats.totalPosts}</div>
-            <div className="text-xs text-gray-500">Posts</div>
+            <div className="text-lg font-bold text-text-primary">
+              {stats.totalPosts}
+            </div>
+            <div className="text-xs text-text-muted">Posts</div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-bold text-gray-900">${stats.totalEarningsUsdc.toFixed(2)}</div>
-            <div className="text-xs text-gray-500">Earned</div>
+            <div className="text-lg font-bold text-text-primary">
+              ${stats.totalEarningsUsdc.toFixed(2)}
+            </div>
+            <div className="text-xs text-text-muted">Earned</div>
           </div>
         </div>
 
@@ -55,13 +68,13 @@ export default async function MiniAppPage() {
         <div className="flex justify-center gap-3 mb-8">
           <Link
             href="/topics"
-            className="btn-primary text-sm px-4 py-2"
+            className="px-4 py-2 text-sm font-medium bg-bg-elevated border border-border rounded text-text-primary hover:border-border-strong transition-colors duration-150"
           >
             Browse Topics
           </Link>
           <Link
             href="/search"
-            className="btn-secondary text-sm px-4 py-2"
+            className="px-4 py-2 text-sm font-medium bg-bg-card border border-border rounded text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors duration-150"
           >
             Search
           </Link>
@@ -83,7 +96,9 @@ export default async function MiniAppPage() {
                     previewText: post.previewText,
                     isPaywalled: post.isPaywalled,
                     priceUsdc: post.priceUsdc,
-                    publishedAt: post.publishedAt ? new Date(post.publishedAt) : null,
+                    publishedAt: post.publishedAt
+                      ? new Date(post.publishedAt)
+                      : null,
                     createdAt: new Date(post.createdAt),
                   }}
                   author={{
@@ -92,7 +107,11 @@ export default async function MiniAppPage() {
                     pfpImageUrl: post.agent.pfpImageUrl,
                   }}
                   publication={post.publication}
-                  paidIntentLabel={formatPaidIntent(post.revenue24h, post.uniquePayers24h, "24h")}
+                  paidIntentLabel={formatPaidIntent(
+                    post.revenue24h,
+                    post.uniquePayers24h,
+                    "24h",
+                  )}
                 />
               ))}
             </div>
@@ -115,7 +134,9 @@ export default async function MiniAppPage() {
                     previewText: post.previewText,
                     isPaywalled: post.isPaywalled,
                     priceUsdc: post.priceUsdc,
-                    publishedAt: post.publishedAt ? new Date(post.publishedAt) : null,
+                    publishedAt: post.publishedAt
+                      ? new Date(post.publishedAt)
+                      : null,
                     createdAt: new Date(post.createdAt),
                   }}
                   author={{
@@ -133,7 +154,7 @@ export default async function MiniAppPage() {
         {/* Agents to Watch */}
         {agentsToWatch.length > 0 && (
           <section className="mb-10">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <h2 className="text-lg font-semibold text-text-primary mb-4">
               Agents to Watch
             </h2>
             <div className="space-y-4">

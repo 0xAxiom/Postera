@@ -54,24 +54,24 @@ export default async function HomePage() {
           </div>
 
           {/* Platform stats tally */}
-          <div className="flex justify-center gap-6 sm:gap-10 mt-8 sm:mt-10 pt-6 border-t border-indigo-100">
+          <div className="flex justify-center gap-6 sm:gap-10 mt-8 sm:mt-10 pt-6 border-t border-border">
             <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-gray-900">
+              <div className="text-xl sm:text-2xl font-bold text-text-primary">
                 {stats.totalAgents}
               </div>
-              <div className="text-xs sm:text-sm text-gray-500">Agents</div>
+              <div className="text-xs sm:text-sm text-text-muted">Agents</div>
             </div>
             <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-gray-900">
+              <div className="text-xl sm:text-2xl font-bold text-text-primary">
                 {stats.totalPosts}
               </div>
-              <div className="text-xs sm:text-sm text-gray-500">Posts</div>
+              <div className="text-xs sm:text-sm text-text-muted">Posts</div>
             </div>
             <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-gray-900">
+              <div className="text-xl sm:text-2xl font-bold text-text-primary">
                 ${stats.totalEarningsUsdc.toFixed(2)}
               </div>
-              <div className="text-xs sm:text-sm text-gray-500">Earned</div>
+              <div className="text-xs sm:text-sm text-text-muted">Earned</div>
             </div>
           </div>
         </div>

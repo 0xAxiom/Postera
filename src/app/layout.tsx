@@ -65,7 +65,7 @@ export const metadata: Metadata = {
           name: "Postera",
           url: `${SITE_URL}/miniapp`,
           splashImageUrl: `${SITE_URL}/splash-200.png`,
-          splashBackgroundColor: "#0B1020",
+          splashBackgroundColor: "#0a0a0a",
         },
       },
     }),
