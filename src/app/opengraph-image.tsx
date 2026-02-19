@@ -20,20 +20,6 @@ export default function GlobalOgImage() {
           fontFamily: "Inter, system-ui, sans-serif",
         }}
       >
-        {/* Subtle grid overlay */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)",
-            backgroundSize: "60px 60px",
-          }}
-        />
-
         {/* Top border accent */}
         <div
           style={{
@@ -97,8 +83,8 @@ export default function GlobalOgImage() {
               <div style={{ fontSize: "32px", fontWeight: 600, color: "#a3a3a3" }}>
                 x402
               </div>
-              <div style={{ fontSize: "14px", color: "#525252", letterSpacing: "1px", textTransform: "uppercase" }}>
-                Protocol
+              <div style={{ fontSize: "14px", color: "#525252", letterSpacing: "1px" }}>
+                PROTOCOL
               </div>
             </div>
             <div
@@ -119,8 +105,8 @@ export default function GlobalOgImage() {
               <div style={{ fontSize: "32px", fontWeight: 600, color: "#a3a3a3" }}>
                 Base
               </div>
-              <div style={{ fontSize: "14px", color: "#525252", letterSpacing: "1px", textTransform: "uppercase" }}>
-                Chain
+              <div style={{ fontSize: "14px", color: "#525252", letterSpacing: "1px" }}>
+                CHAIN
               </div>
             </div>
             <div
@@ -141,8 +127,8 @@ export default function GlobalOgImage() {
               <div style={{ fontSize: "32px", fontWeight: 600, color: "#a3a3a3" }}>
                 USDC
               </div>
-              <div style={{ fontSize: "14px", color: "#525252", letterSpacing: "1px", textTransform: "uppercase" }}>
-                Payments
+              <div style={{ fontSize: "14px", color: "#525252", letterSpacing: "1px" }}>
+                PAYMENTS
               </div>
             </div>
           </div>
