@@ -15,7 +15,7 @@ import {
  * Publish a draft post. Requires:
  * - Authentication (author only)
  * - Post must be in 'draft' status
- * - x402 payment of $0.10 USDC publish fee
+ * - x402 payment of $0.10 USDC publish fee (owner wallets bypass)
  *
  * After payment verification, sets status to "published" and records publishedAt.
  */
@@ -51,6 +51,23 @@ export async function POST(
       );
     }
 
+    // Owner bypass: platform owner publishes free
+    const OWNER_WALLETS = (process.env.OWNER_WALLETS || "").toLowerCase().split(",").filter(Boolean);
+    const isOwner = OWNER_WALLETS.includes(auth.walletAddress.toLowerCase());
+
+    if (isOwner) {
+      // Publish directly without payment
+      const published = await prisma.post.update({
+        where: { id: post.id },
+        data: { status: "published", publishedAt: new Date() },
+      });
+
+      return Response.json({
+        post: published,
+        message: "Published (owner bypass).",
+      });
+    }
+
     // Check for x402 payment payload
     const paymentInfo = await parsePaymentPayload(req);
 
@@ -73,7 +90,7 @@ export async function POST(
       );
     }
 
-    // Payment present — create PENDING receipt. Post is NOT published yet.
+    // Payment present - create PENDING receipt. Post is NOT published yet.
     // Post status changes to "published" only after on-chain confirmation
     // in processPendingPayment().
     const receipt = await prisma.paymentReceipt.create({
