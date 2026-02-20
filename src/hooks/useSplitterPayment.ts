@@ -298,11 +298,28 @@ export function useSplitterPayment(
     }
   }, [approveTxHash, step]);
 
-  // ─── Effect: approve confirmed -> fire sponsor ──────────────────────────
+  // ─── Effect: approve confirmed -> verify allowance -> fire sponsor ──────
 
   useEffect(() => {
     if (approveConfirmed && step === "approve_confirming" && author && amountUnits > BigInt(0)) {
-      fireSponsor(author, amountUnits);
+      // Re-check allowance after approve confirms to avoid race condition
+      // where the sponsor TX simulates against stale RPC state
+      const verifyAndFire = async () => {
+        const maxRetries = 5;
+        for (let i = 0; i < maxRetries; i++) {
+          const { data: currentAllowance } = await refetchAllowance();
+          if (currentAllowance !== undefined && currentAllowance >= amountUnits) {
+            fireSponsor(author, amountUnits);
+            return;
+          }
+          // Wait 1s between retries for RPC state to propagate
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        // If we still don't see allowance after retries, fire anyway
+        // (the approve TX is confirmed, RPC is just slow)
+        fireSponsor(author, amountUnits);
+      };
+      verifyAndFire();
     }
   }, [approveConfirmed, step, author, amountUnits]);
 
